@@ -59,14 +59,14 @@ class AvesFilterChip extends StatefulWidget {
   final AFilterCallback? onTap, onRemove;
   final OffsetFilterCallback? onLongPress;
 
-  static const double defaultPadding = 6.0;
-  static const double defaultRadius = 32;
-  static const double outlineWidth = 2;
+  static const double defaultPadding = 3.0;
+  static const double defaultRadius = 5;
+  static const double outlineWidth = 0.3;
   static const double minChipHeight = kMinInteractiveDimension;
   static const double minChipWidth = kMinInteractiveDimension;
   static const double iconSize = 18;
   static const double fontSize = 14;
-  static const double decoratedContentVerticalPadding = 5;
+  static const double decoratedContentVerticalPadding = 3;
 
   const AvesFilterChip({
     super.key,
