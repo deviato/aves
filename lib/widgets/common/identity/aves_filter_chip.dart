@@ -61,12 +61,12 @@ class AvesFilterChip extends StatefulWidget {
 
   static const double defaultPadding = 3.0;
   static const double defaultRadius = 5;
-  static const double outlineWidth = 0.3;
+  static const double outlineWidth = 0.5;
   static const double minChipHeight = kMinInteractiveDimension;
   static const double minChipWidth = kMinInteractiveDimension;
   static const double iconSize = 18;
   static const double fontSize = 14;
-  static const double decoratedContentVerticalPadding = 3;
+  static const double decoratedContentVerticalPadding = 0;
 
   const AvesFilterChip({
     super.key,
@@ -282,7 +282,7 @@ class _AvesFilterChipState extends State<AvesFilterChip> {
 
       content = Row(
         mainAxisSize: decoration != null ? MainAxisSize.max : MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           if (leading != null) leading,
           if (leading != null && showText) SizedBox(width: padding),
@@ -306,7 +306,7 @@ class _AvesFilterChipState extends State<AvesFilterChip> {
         ],
       );
 
-      final details = widget.details;
+      /*final details = widget.details;
       if (details != null) {
         content = Column(
           mainAxisSize: MainAxisSize.min,
@@ -315,7 +315,7 @@ class _AvesFilterChipState extends State<AvesFilterChip> {
             Flexible(child: details),
           ],
         );
-      }
+      }*/
 
       if (decoration != null) {
         content = Align(
@@ -323,7 +323,8 @@ class _AvesFilterChipState extends State<AvesFilterChip> {
           child: ClipRRect(
             borderRadius: decoration.textBorderRadius,
             child: Container(
-              padding: EdgeInsets.symmetric(horizontal: padding * 2, vertical: AvesFilterChip.decoratedContentVerticalPadding),
+              padding: EdgeInsets.symmetric(horizontal: padding, vertical: AvesFilterChip.decoratedContentVerticalPadding),
+              margin: EdgeInsets.only(bottom: 6),
               color: chipBackground,
               child: content,
             ),
