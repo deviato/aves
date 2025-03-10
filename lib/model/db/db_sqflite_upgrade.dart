@@ -21,6 +21,7 @@ class LocalMediaDbUpgrader {
   // warning: "ALTER TABLE ... RENAME COLUMN ..." is not supported
   // on SQLite <3.25.0, bundled on older Android devices
   static Future<void> upgradeDb(Database db, int oldVersion, int newVersion) async {
+    debugPrint('DB will be upgraded from v$oldVersion to v$newVersion');
     while (oldVersion < newVersion) {
       switch (oldVersion) {
         case 1:
@@ -47,6 +48,8 @@ class LocalMediaDbUpgrader {
           await _upgradeFrom11(db);
         case 12:
           await _upgradeFrom12(db);
+        case 13:
+          await _upgradeFrom13(db);
       }
       oldVersion++;
     }
@@ -442,6 +445,38 @@ class LocalMediaDbUpgrader {
 
       await db.execute('DROP TABLE $coverTable;');
       await db.execute('ALTER TABLE $newCoverTable RENAME TO $coverTable;');
+    });
+  }
+
+  static Future<void> _upgradeFrom13(Database db) async {
+    debugPrint('upgrading DB from v13');
+
+    // rename column 'dateModifiedSecs' to 'dateModifiedMillis'
+    await db.transaction((txn) async {
+      const newEntryTable = '${entryTable}TEMP';
+      await db.execute('CREATE TABLE $newEntryTable('
+          'id INTEGER PRIMARY KEY'
+          ', contentId INTEGER'
+          ', uri TEXT'
+          ', path TEXT'
+          ', sourceMimeType TEXT'
+          ', width INTEGER'
+          ', height INTEGER'
+          ', sourceRotationDegrees INTEGER'
+          ', sizeBytes INTEGER'
+          ', title TEXT'
+          ', dateAddedSecs INTEGER DEFAULT (strftime(\'%s\',\'now\'))'
+          ', dateModifiedMillis INTEGER'
+          ', sourceDateTakenMillis INTEGER'
+          ', durationMillis INTEGER'
+          ', trashed INTEGER DEFAULT 0'
+          ', origin INTEGER DEFAULT 0'
+          ')');
+      await db.rawInsert('INSERT INTO $newEntryTable(id,contentId,uri,path,sourceMimeType,width,height,sourceRotationDegrees,sizeBytes,title,dateAddedSecs,dateModifiedMillis,sourceDateTakenMillis,durationMillis,trashed,origin)'
+          ' SELECT id,contentId,uri,path,sourceMimeType,width,height,sourceRotationDegrees,sizeBytes,title,dateAddedSecs,dateModifiedSecs*1000,sourceDateTakenMillis,durationMillis,trashed,origin'
+          ' FROM $entryTable;');
+      await db.execute('DROP TABLE $entryTable;');
+      await db.execute('ALTER TABLE $newEntryTable RENAME TO $entryTable;');
     });
   }
 }
