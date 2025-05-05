@@ -122,6 +122,10 @@ To run the app:
 ```
 # ./flutterw run -t lib/main_play.dart --flavor play
 ```
+To build the release apk:
+```
+# ./flutterw run -t lib/main_play.dart --flavor play --release
+```
 
 [Version badge]: https://img.shields.io/github/v/release/deckerst/aves?include_prereleases&sort=semver
 [Build badge]: https://img.shields.io/github/actions/workflow/status/deckerst/aves/quality-check.yml?branch=develop
