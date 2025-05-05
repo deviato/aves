@@ -28,9 +28,9 @@ class AppLocalizationsBg extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$countString обекта',
-      few: '$countString обекта',
-      one: '$countString обект',
+      other: '$countString елемента',
+      few: '$countString елемента',
+      one: '$countString елемент',
     );
     return '$_temp0';
   }
@@ -814,7 +814,7 @@ class AppLocalizationsBg extends AppLocalizations {
   String get videoResumeButtonLabel => 'ПРОДЪЛЖИ';
 
   @override
-  String get setCoverDialogLatest => 'Последен обект';
+  String get setCoverDialogLatest => 'Последен елемент';
 
   @override
   String get setCoverDialogAuto => 'Авто';
@@ -962,7 +962,7 @@ class AppLocalizationsBg extends AppLocalizations {
   String get renameEntryDialogLabel => 'Ново име';
 
   @override
-  String get editEntryDialogCopyFromItem => 'Копиране от друг обект';
+  String get editEntryDialogCopyFromItem => 'Копиране от друг елемент';
 
   @override
   String get editEntryDialogTargetFieldsHeader => 'Полета за промяна';
@@ -1504,6 +1504,9 @@ class AppLocalizationsBg extends AppLocalizations {
   String get sortByDuration => 'По продължителност';
 
   @override
+  String get sortByPath => 'Според пътя';
+
+  @override
   String get sortOrderNewestFirst => 'Първо най-новите';
 
   @override
@@ -1631,6 +1634,9 @@ class AppLocalizationsBg extends AppLocalizations {
 
   @override
   String get searchDateSectionTitle => 'Дата';
+
+  @override
+  String get searchFormatSectionTitle => 'Формати';
 
   @override
   String get searchAlbumsSectionTitle => 'Албуми';
@@ -1771,10 +1777,10 @@ class AppLocalizationsBg extends AppLocalizations {
   String get settingsThumbnailSectionTitle => 'Миниатюри';
 
   @override
-  String get settingsThumbnailOverlayTile => 'Наслагване';
+  String get settingsThumbnailOverlayTile => 'Повече информация';
 
   @override
-  String get settingsThumbnailOverlayPageTitle => 'Наслагване';
+  String get settingsThumbnailOverlayPageTitle => 'Повече информация';
 
   @override
   String get settingsThumbnailShowHdrIcon => 'Показване на HDR икона';
@@ -1861,10 +1867,10 @@ class AppLocalizationsBg extends AppLocalizations {
   String get settingsViewerQuickActionEmpty => 'Без бутони';
 
   @override
-  String get settingsViewerOverlayTile => 'Наслагване';
+  String get settingsViewerOverlayTile => 'Повече информация';
 
   @override
-  String get settingsViewerOverlayPageTitle => 'Наслагване';
+  String get settingsViewerOverlayPageTitle => 'Повече информация';
 
   @override
   String get settingsViewerShowOverlayOnOpening => 'Показване при отваряне';
@@ -2050,7 +2056,7 @@ class AppLocalizationsBg extends AppLocalizations {
   String get settingsEnableBin => 'Използвайте кошчето';
 
   @override
-  String get settingsEnableBinSubtitle => 'Съхранявайте изтритите обекти за 30 дни';
+  String get settingsEnableBinSubtitle => 'Съхранявайте изтритите елементи за 30 дни';
 
   @override
   String get settingsDisablingBinWarningDialogMessage => 'Елементите в кошчето ще бъдат изтрити завинаги.';
@@ -2101,7 +2107,7 @@ class AppLocalizationsBg extends AppLocalizations {
   String get settingsAccessibilityShowPinchGestureAlternatives => 'Показване на алтернативи за жестове с мултитъч';
 
   @override
-  String get settingsDisplaySectionTitle => 'Изобразяване';
+  String get settingsDisplaySectionTitle => 'Изглед';
 
   @override
   String get settingsThemeBrightnessTile => 'Тема';

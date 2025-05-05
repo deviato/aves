@@ -139,7 +139,7 @@ class WallpaperButtons extends StatelessWidget with FeedbackMixin {
           provider = MemoryImage(bytes);
         }
       }
-    } else if (entry.canDecode) {
+    } else if (entry.isDecodingSupported) {
       if (entry.useTiles) {
         // provider image is already cropped, but not rotated
         needOrientation = rotationDegrees != 0 || isFlipped;
@@ -172,7 +172,7 @@ class WallpaperButtons extends StatelessWidget with FeedbackMixin {
       } else {
         // provider image is already rotated, but not cropped
         needCrop = true;
-        provider = entry.uriImage;
+        provider = entry.fullImage;
       }
     }
     if (provider == null) return null;

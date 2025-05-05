@@ -4,6 +4,7 @@ import 'package:aves/app_mode.dart';
 import 'package:aves/model/covers.dart';
 import 'package:aves/model/dynamic_albums.dart';
 import 'package:aves/model/entry/entry.dart';
+import 'package:aves/model/filters/covered/album_base.dart';
 import 'package:aves/model/filters/covered/dynamic_album.dart';
 import 'package:aves/model/filters/covered/stored_album.dart';
 import 'package:aves/model/filters/filters.dart';
@@ -190,7 +191,7 @@ class AlbumChipSetActionDelegate extends ChipSetActionDelegate<AlbumBaseFilter> 
       builder: (context) {
         return TileViewDialog<ChipSortFactor, AlbumChipGroupFactor, TileLayout>(
           initialValue: initialValue,
-          sortOptions: ChipSetActionDelegate.sortOptions.map((v) => TileViewDialogOption(value: v, title: v.getName(context), icon: v.icon)).toList(),
+          sortOptions: ChipSetActionDelegate.albumSortOptions.map((v) => TileViewDialogOption(value: v, title: v.getName(context), icon: v.icon)).toList(),
           groupOptions: _groupOptions.map((v) => TileViewDialogOption(value: v, title: v.getName(context), icon: v.icon)).toList(),
           layoutOptions: ChipSetActionDelegate.layoutOptions.map((v) => TileViewDialogOption(value: v, title: v.getName(context), icon: v.icon)).toList(),
           sortOrder: (factor, reverse) => factor.getOrderName(context, reverse),

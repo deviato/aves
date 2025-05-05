@@ -36,7 +36,7 @@ import 'package:aves/widgets/common/providers/highlight_info_provider.dart';
 import 'package:aves/widgets/common/providers/media_query_data_provider.dart';
 import 'package:aves/widgets/common/providers/viewer_entry_provider.dart';
 import 'package:aves/widgets/dialogs/entry_editors/edit_location_dialog.dart';
-import 'package:aves/widgets/home_page.dart';
+import 'package:aves/widgets/home/home_page.dart';
 import 'package:aves/widgets/navigation/tv_page_transitions.dart';
 import 'package:aves/widgets/navigation/tv_rail.dart';
 import 'package:aves/widgets/welcome_page.dart';
@@ -70,14 +70,15 @@ class AvesApp extends StatefulWidget {
     'fi', // Finnish
     'he', // Hebrew
     'hi', // Hindi
-    'kn', // Kannada
     'ml', // Malayalam
     'my', // Burmese
+    'ne', // Nepali
     'or', // Odia
     'sat', // Santali
     'sl', // Slovenian
     'sr', // Serbian
     'th', // Thai
+    'ur', // Urdu
   }.map(Locale.new).toSet();
   static final List<Locale> supportedLocales = AppLocalizations.supportedLocales.where((v) => !_unsupportedLocales.contains(v)).toList();
   static final ValueNotifier<EdgeInsets> cutoutInsetsNotifier = ValueNotifier(EdgeInsets.zero);

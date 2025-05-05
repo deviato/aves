@@ -1,4 +1,4 @@
-In v1.12.4:
+In v1.12.9:
 - play more kinds of motion photos
-- enjoy the app in Galician
+- enjoy the app in Galician and Kannada
 Full changelog available on GitHub

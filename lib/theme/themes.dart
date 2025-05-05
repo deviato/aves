@@ -58,11 +58,12 @@ class Themes {
       cardColor: _schemeCardLayer(colors),
       colorScheme: colors,
       dividerColor: colors.outlineVariant,
-      indicatorColor: colors.primary,
       scaffoldBackgroundColor: _schemeFirstLayer(colors),
       // TYPOGRAPHY & ICONOGRAPHY
+      iconTheme: _iconTheme(colors),
       typography: _typography,
       // COMPONENT THEMES
+      bottomNavigationBarTheme: _bottomNavigationBarTheme(colors),
       checkboxTheme: _checkboxTheme(colors),
       drawerTheme: _drawerTheme(colors),
       floatingActionButtonTheme: _floatingActionButtonTheme(colors),
@@ -75,7 +76,17 @@ class Themes {
       ),
       radioTheme: _radioTheme(colors),
       sliderTheme: _sliderTheme(colors),
+      tabBarTheme: TabBarThemeData(indicatorColor: colors.primary),
       tooltipTheme: _tooltipTheme,
+    );
+  }
+
+  static BottomNavigationBarThemeData _bottomNavigationBarTheme(ColorScheme colors) {
+    final iconTheme = _iconTheme(colors);
+    return BottomNavigationBarThemeData(
+      elevation: 0,
+      selectedIconTheme: iconTheme.copyWith(color: colors.primary),
+      unselectedIconTheme: iconTheme.copyWith(color: _unselectedWidgetColor(colors)),
     );
   }
 
@@ -85,6 +96,16 @@ class Themes {
 
   static DrawerThemeData _drawerTheme(ColorScheme colors) => DrawerThemeData(
         backgroundColor: _schemeSecondLayer(colors),
+      );
+
+  static IconThemeData _iconTheme(ColorScheme colors) => IconThemeData(
+        // increased weight (from default 400 to 600)
+        // applied to variable fonts from `material_symbols_icons`,
+        // to match the fixed-weight icons from `material_design_icons_flutter`
+        weight: 600,
+        grade: 0,
+        opticalSize: 48,
+        color: colors.onSurface,
       );
 
   static const _listTileTheme = ListTileThemeData(
@@ -183,7 +204,7 @@ class Themes {
         titleTextStyle: _titleTextStyle.copyWith(color: _lightTitleColor),
         systemOverlayStyle: deviceInitialized ? AvesApp.systemUIStyleForBrightness(colors.brightness, _schemeFirstLayer(colors)) : null,
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: _schemeSecondLayer(colors),
         titleTextStyle: _titleTextStyle.copyWith(color: _lightTitleColor),
       ),
@@ -236,7 +257,7 @@ class Themes {
         titleTextStyle: _titleTextStyle.copyWith(color: _darkTitleColor),
         systemOverlayStyle: deviceInitialized ? AvesApp.systemUIStyleForBrightness(colors.brightness, _schemeFirstLayer(colors)) : null,
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: _schemeSecondLayer(colors),
         titleTextStyle: _titleTextStyle.copyWith(color: _darkTitleColor),
       ),

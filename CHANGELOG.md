@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 ## <a id="unreleased"></a>[Unreleased]
 
+### Changed
+
+- revert to Skia rendering engine
+
+## <a id="v1.12.10"></a>[v1.12.10] - 2025-04-16
+
+### Added
+
+- Search: format filters
+- Albums: sort by path
+
+### Changed
+
+- upgraded Flutter to stable v3.29.3
+
+### Fixed
+
+- region decoding failing to access decoder pool
+
+## <a id="v1.12.9"></a>[v1.12.9] - 2025-04-06
+
+### Added
+
+- Kannada translation (thanks Chethan, Prasannakumar T Bhat)
+
+### Changed
+
+- enable Impeller rendering engine
+
+### Fixed
+
+- memory pressure during browsing
+
+## <a id="v1.12.8"></a>[v1.12.8] - 2025-03-25
+
+### Fixed
+
+- swiping images for some combinations of screen size, device pixel ratio, and image size
+
+## <a id="v1.12.7"></a>[v1.12.7] - 2025-03-16
+
+### Added
+
+- handle launch error to report and export DB
+
+### Changed
+
+- DB post-upgrade sanitization
+- upgraded Flutter to stable v3.29.2
+
 ## <a id="v1.12.6"></a>[v1.12.6] - 2025-03-11
 
 ### Fixed

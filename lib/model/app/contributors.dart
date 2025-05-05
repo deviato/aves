@@ -129,6 +129,14 @@ class Contributors {
     Contributor('Josep M. Ferrer', 'txemaq@gmail.com'),
     Contributor('pitroig', 'ona@riseup.net'),
     Contributor('Rubén Castiñeiras Lorenzo', 'rcasl@outlook.com'),
+    Contributor('hanyang cheng', 'cinxiafortis@tutanota.de'),
+    Contributor('Chethan', 'chethan@users.noreply.hosted.weblate.org'),
+    Contributor('Prasannakumar T Bhat', 'pbhat99@gmail.com'),
+    Contributor('Bora Atıcı', 'boratici.acc@gmail.com'),
+    Contributor('Ettore Atalan', 'atalanttore@googlemail.com'),
+    Contributor('VertekPlus', 'vertekplus@users.noreply.hosted.weblate.org'),
+    Contributor('slabs37', 'p84haghi@gmail.com'),
+    Contributor('GiannosOB', 'giannos2105@gmail.com'),
     // Contributor('Femini', 'nizamismidov4@gmail.com'), // Azerbaijani
     // Contributor('Alvi Khan', 'aveenalvi@gmail.com'), // Bengali
     // Contributor('Htet Oo Hlaing', 'htetoh2006@outlook.com'), // Burmese
@@ -137,19 +145,21 @@ class Contributors {
     // Contributor('Olli', 'ollinen@ollit.dev'), // Finnish
     // Contributor('Ricky Tigg', 'ricky.tigg@gmail.com'), // Finnish
     // Contributor('Idj', 'joneltmp+goahn@gmail.com'), // Hebrew
+    // Contributor('elid', 'shopisrael12@gmail.com'), // Hebrew
     // Contributor('Rohit Burman', 'rohitburman31p@rediffmail.com'), // Hindi
     // Contributor('AJ07', 'ajaykumarmeena676@gmail.com'), // Hindi
     // Contributor('Sartaj', 'ssaarrttaajj111@gmail.com'), // Hindi
     // Contributor('Anurag Samota', 'anuragsamotasamota@gmail.com'), // Hindi
-    // Contributor('Chethan', 'chethan@users.noreply.hosted.weblate.org'), // Kannada
     // Contributor('GoRaN', 'gorangharib.909@gmail.com'), // Kurdish (Central)
     // Contributor('Rasti K5', 'rasti.khdhr@gmail.com'), // Kurdish (Central)
     // Contributor('Raman', 'xysed@tutanota.com'), // Malayalam
+    // Contributor('Over Barrow', 'rawixo6748@insfou.com'), // Nepali
     // Contributor('Subham Jena', 'subhamjena8465@gmail.com'), // Odia
     // Contributor('Prasanta-Hembram', 'Prasantahembram720@gmail.com'), // Santali
     // Contributor('Enenra', 'nnra2210@gmail.com'), // Serbian
     // Contributor('mytja', 'mamnju21@gmail.com'), // Slovenian
     // Contributor('Nattapong K', 'mixer5056@gmail.com'), // Thai
+    // Contributor('Feliks-WR', 'aq.1428@tuta.io'), // Urdu
   };
 }
 

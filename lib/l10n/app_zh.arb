@@ -1409,12 +1409,16 @@
   "@dynamicAlbumAlreadyExists": {},
   "chipActionDecompose": "分割",
   "@chipActionDecompose": {},
-  "coordinateFormatDdm": "DDM",
+  "coordinateFormatDdm": "度分秒十进制坐标",
   "@coordinateFormatDdm": {},
   "editEntryLocationDialogImportGpx": "导入 GPX",
   "@editEntryLocationDialogImportGpx": {},
   "removeEntryMetadataDialogAll": "全部",
   "@removeEntryMetadataDialogAll": {},
   "editEntryLocationDialogTimeShift": "时间时移",
-  "@editEntryLocationDialogTimeShift": {}
+  "@editEntryLocationDialogTimeShift": {},
+  "searchFormatSectionTitle": "格式",
+  "@searchFormatSectionTitle": {},
+  "sortByPath": "按路径",
+  "@sortByPath": {}
 }
