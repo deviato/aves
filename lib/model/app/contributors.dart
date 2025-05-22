@@ -137,6 +137,9 @@ class Contributors {
     Contributor('VertekPlus', 'vertekplus@users.noreply.hosted.weblate.org'),
     Contributor('slabs37', 'p84haghi@gmail.com'),
     Contributor('GiannosOB', 'giannos2105@gmail.com'),
+    Contributor('Miquel Martí', 'miquelmarti111@gmail.com'),
+    Contributor('Yurt Page', 'yurtpage@gmail.com'),
+    Contributor('Murcielago', 'weblate.j9bmx@slmail.me'),
     // Contributor('Femini', 'nizamismidov4@gmail.com'), // Azerbaijani
     // Contributor('Alvi Khan', 'aveenalvi@gmail.com'), // Bengali
     // Contributor('Htet Oo Hlaing', 'htetoh2006@outlook.com'), // Burmese

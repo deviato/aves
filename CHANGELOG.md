@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## <a id="unreleased"></a>[Unreleased]
 
+### Fixed
+
+- opening home when launching app as media picker
+
+## <a id="v1.13.1"></a>[v1.13.1] - 2025-05-14
+
+### Fixed
+
+- albums: show groups to move/copy/export items
+- albums: hide grouped albums containing hidden items only
+
+## <a id="v1.13.0"></a>[v1.13.0] - 2025-05-12
+
+### Added
+
+- Albums: groups
+- Collection: sort by storage path
+- Search: week day filters
+
 ### Changed
 
 - revert to Skia rendering engine
