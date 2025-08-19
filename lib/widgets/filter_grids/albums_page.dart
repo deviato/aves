@@ -15,14 +15,13 @@ import 'package:aves/widgets/common/extensions/build_context.dart';
 import 'package:aves/widgets/common/identity/empty.dart';
 import 'package:aves/widgets/common/providers/filter_group_provider.dart';
 import 'package:aves/widgets/filter_grids/common/action_delegates/album_set.dart';
+import 'package:aves/widgets/filter_grids/common/enums.dart';
 import 'package:aves/widgets/filter_grids/common/filter_nav_page.dart';
 import 'package:aves/widgets/filter_grids/common/section_keys.dart';
 import 'package:aves_model/aves_model.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-enum AlbumChipType { stored, dynamic, group }
 
 class AlbumListPage extends StatelessWidget {
   static const routeName = '/albums';
@@ -44,12 +43,13 @@ class AlbumListPage extends StatelessWidget {
       child: Builder(
         // to access filter group provider from subtree context
         builder: (context) {
-          return Selector<Settings, (AlbumChipSectionFactor, ChipSortFactor, bool, Set<CollectionFilter>)>(
-            selector: (context, s) => (s.albumSectionFactor, s.albumSortFactor, s.albumSortReverse, s.pinnedFilters),
+          final source = context.read<CollectionSource>();
+          return Selector<Settings, (AlbumChipSectionFactor, ChipSortFactor, bool, Set<CollectionFilter>, Set<CollectionFilter>)>(
+            selector: (context, s) => (s.albumSectionFactor, s.albumSortFactor, s.albumSortReverse, s.hiddenFilters, s.pinnedFilters),
             shouldRebuild: (t1, t2) {
               // `Selector` by default uses `DeepCollectionEquality`, which does not go deep in collections within records
               const eq = DeepCollectionEquality();
-              return !(eq.equals(t1.$1, t2.$1) && eq.equals(t1.$2, t2.$2) && eq.equals(t1.$3, t2.$3) && eq.equals(t1.$4, t2.$4));
+              return !(eq.equals(t1.$1, t2.$1) && eq.equals(t1.$2, t2.$2) && eq.equals(t1.$3, t2.$3) && eq.equals(t1.$4, t2.$4) && eq.equals(t1.$5, t2.$5));
             },
             builder: (context, s, child) {
               return ValueListenableBuilder<bool>(
@@ -58,11 +58,10 @@ class AlbumListPage extends StatelessWidget {
                   return AnimatedBuilder(
                     animation: Listenable.merge({albumGrouping, dynamicAlbums}),
                     builder: (context, child) => StreamBuilder(
-                      stream: context.read<CollectionSource>().eventBus.on<AlbumsChangedEvent>(),
+                      stream: source.eventBus.on<AlbumsChangedEvent>(),
                       builder: (context, snapshot) {
-                        final source = context.read<CollectionSource>();
                         final groupUri = context.watch<FilterGroupNotifier>().value;
-                        final gridItems = AlbumListPage.getAlbumGridItems(context, source, AlbumChipType.values, groupUri);
+                        final gridItems = getGridItems(context, source, AlbumChipType.values, groupUri);
                         return StreamBuilder<Set<CollectionFilter>?>(
                           // to update sections by tier
                           stream: covers.packageChangeStream,
@@ -72,7 +71,7 @@ class AlbumListPage extends StatelessWidget {
                             sortFactor: settings.albumSortFactor,
                             showHeaders: settings.albumSectionFactor != AlbumChipSectionFactor.none,
                             actionDelegate: AlbumChipSetActionDelegate(gridItems),
-                            filterSections: AlbumListPage.groupToSections(context, source, gridItems),
+                            filterSections: groupToSections(context, source, gridItems),
                             newFilters: source.getNewAlbumFilters(context),
                             emptyBuilder: () => EmptyContent(
                               icon: AIcons.album,
@@ -92,9 +91,9 @@ class AlbumListPage extends StatelessWidget {
     );
   }
 
-  // common with album selection page to move/copy entries
+  // common with picking page
 
-  static List<FilterGridItem<AlbumBaseFilter>> getAlbumGridItems(
+  static List<FilterGridItem<AlbumBaseFilter>> getGridItems(
     BuildContext context,
     CollectionSource source,
     Iterable<AlbumChipType> albumChipTypes,
@@ -109,21 +108,24 @@ class AlbumListPage extends StatelessWidget {
       };
     }
 
-    final listedStoredAlbums = <String>{};
+    final hiddenFilters = settings.hiddenFilters;
+
+    final listedStoredAlbumPaths = <String>{};
     if (albumChipTypes.contains(AlbumChipType.stored)) {
       final allAlbums = source.rawAlbums;
       if (groupUri == null) {
         final withinGroups = whereTypeRecursively<StoredAlbumFilter>(groupContent).map((v) => v.album).toSet();
-        listedStoredAlbums.addAll(allAlbums.whereNot(withinGroups.contains));
+        listedStoredAlbumPaths.addAll(allAlbums.whereNot(withinGroups.contains));
       } else {
         // check that group content is listed from source, to prevent displaying hidden content
-        listedStoredAlbums.addAll(groupContent.whereType<StoredAlbumFilter>().map((v) => v.album).where(allAlbums.contains));
+        listedStoredAlbumPaths.addAll(groupContent.whereType<StoredAlbumFilter>().map((v) => v.album).where(allAlbums.contains));
       }
     }
+    final listedStoredAlbums = listedStoredAlbumPaths.map((album) => StoredAlbumFilter(album, source.getStoredAlbumDisplayName(context, album))).whereNot(hiddenFilters.contains).toSet();
 
     final listedDynamicAlbums = <DynamicAlbumFilter>{};
     if (albumChipTypes.contains(AlbumChipType.dynamic)) {
-      final allDynamicAlbums = dynamicAlbums.all;
+      final allDynamicAlbums = dynamicAlbums.all.whereNot(hiddenFilters.contains).toSet();
       if (groupUri == null) {
         final withinGroups = whereTypeRecursively<DynamicAlbumFilter>(groupContent).toSet();
         listedDynamicAlbums.addAll(allDynamicAlbums.whereNot(withinGroups.contains));
@@ -134,11 +136,11 @@ class AlbumListPage extends StatelessWidget {
     }
 
     // always show groups, which are needed to navigate to other types
-    final albumGroupFilters = groupContent.whereType<AlbumGroupFilter>().toSet();
+    final albumGroupFilters = groupContent.whereType<AlbumGroupFilter>().whereNot(hiddenFilters.contains).toSet();
 
     final filters = <AlbumBaseFilter>{
       ...albumGroupFilters,
-      ...listedStoredAlbums.map((album) => StoredAlbumFilter(album, source.getStoredAlbumDisplayName(context, album))),
+      ...listedStoredAlbums,
       ...listedDynamicAlbums,
     };
 

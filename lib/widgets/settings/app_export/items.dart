@@ -39,7 +39,8 @@ extension ExtraAppExportItem on AppExportItem {
         favourites.import(jsonMap, source);
       case AppExportItem.settings:
         await settings.import(jsonMap);
-        albumGrouping.init(settings.albumGroups);
+        albumGrouping.setGroups(settings.albumGroups);
+        tagGrouping.setGroups(settings.tagGroups);
     }
   }
 }

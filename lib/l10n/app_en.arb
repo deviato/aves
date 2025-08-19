@@ -105,7 +105,7 @@
   "chipActionLock": "Lock",
   "chipActionPin": "Pin to top",
   "chipActionUnpin": "Unpin from top",
-  "chipActionGroup": "Group",
+  "chipActionGroup": "Change grouping",
   "chipActionRename": "Rename",
   "chipActionSetCover": "Set cover",
   "chipActionShowCountryStates": "Show states",
@@ -816,6 +816,7 @@
 
   "tagPageTitle": "Tags",
   "tagEmpty": "No tags",
+  "tagPickPageTitle": "Pick Tag",
 
   "binPageTitle": "Recycle Bin",
 
@@ -879,6 +880,10 @@
   "settingsNavigationDrawerTabAlbums": "Albums",
   "settingsNavigationDrawerTabPages": "Pages",
   "settingsNavigationDrawerAddAlbum": "Add album",
+
+  "settingsNavigationBottomActionsTile": "Bottom navigation",
+  "settingsNavigationBottomActionEditorPageTitle": "Bottom Navigation",
+  "settingsNavigationBottomActionEditorBanner": "Touch and hold to move buttons and select which actions are displayed in the bottom navigation bar.",
 
   "settingsThumbnailSectionTitle": "Thumbnails",
   "settingsThumbnailOverlayTile": "Overlay",
@@ -1072,7 +1077,12 @@
   "viewerInfoLabelAddress": "Address",
 
   "mapStyleDialogTitle": "Map Style",
+  "mapStyleDialogAddStyle": "Add style",
   "mapStyleTooltip": "Select map style",
+  "mapStyleEditorDialogName": "Name",
+  "mapStyleEditorDialogUrl": "URL",
+  "mapStyleEditorDialogSubdomains": "Subdomains",
+  "mapStyleEditorDialogUserAgent": "User-Agent",
   "mapZoomInTooltip": "Zoom in",
   "mapZoomOutTooltip": "Zoom out",
   "mapPointNorthUpTooltip": "Point north up",

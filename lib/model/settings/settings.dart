@@ -10,7 +10,6 @@ import 'package:aves/model/filters/mime.dart';
 import 'package:aves/model/grouping/common.dart';
 import 'package:aves/model/settings/defaults.dart';
 import 'package:aves/model/settings/enums/accessibility_animations.dart';
-import 'package:aves/model/settings/enums/map_style.dart';
 import 'package:aves/model/settings/modules/app.dart';
 import 'package:aves/model/settings/modules/collection.dart';
 import 'package:aves/model/settings/modules/debug.dart';
@@ -46,7 +45,7 @@ import 'package:latlong2/latlong.dart';
 final Settings settings = Settings._private();
 
 class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings, CollectionSettings, DebugSettings, DisplaySettings, FilterGridsSettings, InfoSettings, NavigationSettings, PrivacySettings, ScreenSaverSettings, SlideshowSettings, SubtitlesSettings, VideoSettings, ViewerSettings, WidgetSettings {
-  final List<StreamSubscription> _subscriptions = [];
+  final Set<StreamSubscription> _subscriptions = {};
   final EventChannel _platformSettingsChangeChannel = const OptionalEventChannel('deckers.thibault/aves/settings_change');
   final StreamController<SettingsChangedEvent> _updateStreamController = StreamController.broadcast();
   final StreamController<SettingsChangedEvent> _updateTileExtentStreamController = StreamController.broadcast();
@@ -76,6 +75,7 @@ class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings,
 
   void _unregister() {
     albumGrouping.removeListener(saveAlbumGroups);
+    tagGrouping.removeListener(saveTagGroups);
     _subscriptions
       ..forEach((sub) => sub.cancel())
       ..clear();
@@ -83,20 +83,24 @@ class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings,
 
   void _register(bool monitorPlatformSettings) {
     albumGrouping.addListener(saveAlbumGroups);
+    tagGrouping.addListener(saveTagGroups);
     _subscriptions.add(dynamicAlbums.eventBus.on<DynamicAlbumChangedEvent>().listen((e) {
       final changes = e.changes;
       updateBookmarkedDynamicAlbums(changes);
       updatePinnedDynamicAlbums(changes);
     }));
-    _subscriptions.add(albumGrouping.eventBus.on<GroupUriChangedEvent>().listen((e) {
-      final oldGroupUri = e.oldGroupUri;
-      final newGroupUri = e.newGroupUri;
-      updateBookmarkedGroup(oldGroupUri, newGroupUri);
-      updatePinnedGroup(oldGroupUri, newGroupUri);
-    }));
+    _subscriptions.add(albumGrouping.eventBus.on<GroupUriChangedEvent>().listen(_onGroupingChange));
+    _subscriptions.add(tagGrouping.eventBus.on<GroupUriChangedEvent>().listen(_onGroupingChange));
     if (monitorPlatformSettings) {
       _subscriptions.add(_platformSettingsChangeChannel.receiveBroadcastStream().listen((event) => _onPlatformSettingsChanged(event as Map?)));
     }
+  }
+
+  void _onGroupingChange(GroupUriChangedEvent event) {
+    final oldGroupUri = event.oldGroupUri;
+    final newGroupUri = event.newGroupUri;
+    updateBookmarkedGroup(oldGroupUri, newGroupUri);
+    updatePinnedGroup(oldGroupUri, newGroupUri);
   }
 
   Future<void> reload() => store.reload();
@@ -122,10 +126,10 @@ class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings,
     // availability
     if (flavor.hasMapStyleDefault) {
       final defaultMapStyle = mobileServices.defaultMapStyle;
-      if (mobileServices.mapStyles.contains(defaultMapStyle)) {
+      if (defaultMapStyle != null && mobileServices.mapStyles.contains(defaultMapStyle)) {
         mapStyle = defaultMapStyle;
       } else {
-        final styles = EntryMapStyle.values.whereNot((v) => v.needMobileService).toList();
+        final styles = EntryMapStyles.baseStyles;
         mapStyle = styles[Random().nextInt(styles.length)];
       }
     }
@@ -141,7 +145,6 @@ class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings,
     mustBackTwiceToExit = false;
     // address `TV-BU` / `TV-BY` requirements from https://developer.android.com/docs/quality-guidelines/tv-app-quality
     keepScreenOn = KeepScreenOn.videoPlayback;
-    enableBottomNavigationBar = false;
     drawerTypeBookmarks = [
       null,
       MimeFilter.video,
@@ -154,6 +157,7 @@ class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings,
       TagListPage.routeName,
       SearchPage.routeName,
     ];
+    bottomNavigationActions = [];
     showOverlayOnOpening = false;
     showOverlayMinimap = false;
     showOverlayThumbnailPreview = false;
@@ -165,6 +169,7 @@ class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings,
     videoGestureSideDoubleTapSeek = false;
     enableBin = false;
     showPinchGestureAlternatives = true;
+    resetShowTitleQuery();
   }
 
   Future<void> sanitize() async {
@@ -207,14 +212,22 @@ class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings,
   // map
 
   EntryMapStyle? get mapStyle {
-    final preferred = getEnumOrDefault(SettingKeys.mapStyleKey, null, EntryMapStyle.values);
+    var preferred = getString(SettingKeys.mapStyleKey);
+
+    // backward compatibility with definition as enum
+    const oldEnumPrefix = 'EntryMapStyle.';
+    if (preferred != null && preferred.startsWith(oldEnumPrefix)) {
+      preferred = preferred.substring(oldEnumPrefix.length);
+      if (preferred.isEmpty) preferred = null;
+    }
+
     if (preferred == null) return null;
 
-    final available = availability.mapStyles;
-    return available.contains(preferred) ? preferred : available.first;
+    final styles = [...availability.mapStyles, ...customMapStyles];
+    return styles.firstWhereOrNull((v) => v.key == preferred) ?? styles.first;
   }
 
-  set mapStyle(EntryMapStyle? newValue) => set(SettingKeys.mapStyleKey, newValue?.toString());
+  set mapStyle(EntryMapStyle? newValue) => set(SettingKeys.mapStyleKey, newValue?.key);
 
   LatLng? get mapDefaultCenter {
     final json = getString(SettingKeys.mapDefaultCenterKey);
@@ -222,6 +235,10 @@ class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings,
   }
 
   set mapDefaultCenter(LatLng? newValue) => set(SettingKeys.mapDefaultCenterKey, newValue != null ? jsonEncode(newValue.toJson()) : null);
+
+  Set<EntryMapStyle> get customMapStyles => (getStringList(SettingKeys.customMapStylesKey) ?? []).map(EntryMapStyle.fromJson).nonNulls.toSet();
+
+  set customMapStyles(Set<EntryMapStyle> newValue) => set(SettingKeys.customMapStylesKey, newValue.map((filter) => filter.toJson()).toList());
 
   // bin
 
@@ -335,7 +352,6 @@ class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings,
             case SettingKeys.forceWesternArabicNumeralsKey:
             case SettingKeys.enableDynamicColorKey:
             case SettingKeys.enableBlurEffectKey:
-            case SettingKeys.enableBottomNavigationBarKey:
             case SettingKeys.mustBackTwiceToExitKey:
             case SettingKeys.confirmCreateVaultKey:
             case SettingKeys.confirmDeleteForeverKey:
@@ -404,6 +420,7 @@ class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings,
             case SettingKeys.placeSortFactorKey:
             case SettingKeys.tagSortFactorKey:
             case SettingKeys.albumGroupsKey:
+            case SettingKeys.tagGroupsKey:
             case SettingKeys.imageBackgroundKey:
             case SettingKeys.videoAutoPlayModeKey:
             case SettingKeys.videoBackgroundModeKey:
@@ -430,10 +447,12 @@ class Settings with ChangeNotifier, SettingsAccess, SearchSettings, AppSettings,
               } else {
                 debugPrint('failed to import key=$key, value=$newValue is not a string');
               }
+            case SettingKeys.customMapStylesKey:
             case SettingKeys.homeCustomCollectionKey:
             case SettingKeys.drawerTypeBookmarksKey:
             case SettingKeys.drawerAlbumBookmarksKey:
             case SettingKeys.drawerPageBookmarksKey:
+            case SettingKeys.bottomNavigationActionsKey:
             case SettingKeys.collectionBurstPatternsKey:
             case SettingKeys.pinnedFiltersKey:
             case SettingKeys.hiddenFiltersKey:

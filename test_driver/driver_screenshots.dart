@@ -31,9 +31,9 @@ Future<void> configureAndLaunch() async {
     // navigation
     ..keepScreenOn = KeepScreenOn.always
     ..setHome(HomePageSetting.collection)
-    ..enableBottomNavigationBar = true
     ..drawerTypeBookmarks = [null, FavouriteFilter.instance]
     ..drawerAlbumBookmarks = null
+    ..bottomNavigationActions = SettingsDefaults.bottomNavigationActions
     // collection
     ..collectionSectionFactor = EntrySectionFactor.month
     ..collectionSortFactor = EntrySortFactor.date
@@ -58,7 +58,7 @@ Future<void> configureAndLaunch() async {
     ..coordinateFormat = CoordinateFormat.dms
     ..unitSystem = UnitSystem.metric
     // map
-    ..mapStyle = EntryMapStyle.googleNormal
+    ..mapStyle = EntryMapStyles.googleNormal
     // debug
     ..debugShowViewerTiles = false;
   app.main();

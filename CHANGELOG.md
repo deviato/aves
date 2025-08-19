@@ -4,9 +4,82 @@ All notable changes to this project will be documented in this file.
 
 ## <a id="unreleased"></a>[Unreleased]
 
+### Added
+
+- Collection: support for Motorola burst pattern
+- Stats: total video duration
+
+### Changed
+
+- manual rotation to landscape switches to current sensor orientation, then is fixed to it
+
 ### Fixed
 
+- receiving `geo:` URI in some cases
+- visibility of hidden new albums
+- customizing cover or hiding tag groups
+
+## <a id="v1.13.6"></a>[v1.13.6] - 2025-07-28
+
+### Fixed
+
+- DB init when a serialized dynamic album is too large for cursor window
+
+## <a id="v1.13.5"></a>[v1.13.5] - 2025-07-23
+
+### Added
+
+- Tags: groups
+- bottom navigation bar customization
+
+### Fixed
+
+- crash when updating multiple home widgets
+
+## <a id="v1.13.4"></a>[v1.13.4] - 2025-07-09
+
+### Added
+
+- Map: allow setting subdomains, user-agent for custom styles
+
+### Fixed
+
+- showing directories wrongly registered as media in the Media Store
+- apply preferred first day of the week for date picker
+
+## <a id="v1.13.3"></a>[v1.13.3] - 2025-06-25
+
+### Added
+
+- Info: show matching dynamic albums
+- Map: allow adding custom map styles
+
+### Changed
+
+- Viewer: use nearest neighbor algorithm to render small raster images
+- revoke access when `DocumentsProvider` is not listing content as it should
+
+### Fixed
+
+- crash when decoding some large thumbnails
+- crash when editing metadata for some JPEG images
+- scrolling to top when leaving viewer to collection with title filter enabled
+- recovery of untracked binned items without extension
+
+## <a id="v1.13.2"></a>[v1.13.2] - 2025-06-02
+
+### Changed
+
+- downgraded Flutter to stable v3.27.4
+- prevent display orientation flip when device rotation is locked
+
+### Fixed
+
+- moved file losing its extension and no longer being detected as media in some cases
 - opening home when launching app as media picker
+- removing groups with obsolete albums
+- loading group custom covers
+- crash when parsing some large media with trailing thumbnail
 
 ## <a id="v1.13.1"></a>[v1.13.1] - 2025-05-14
 

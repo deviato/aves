@@ -2,8 +2,10 @@ import 'package:aves/model/db/db.dart';
 import 'package:aves/model/dynamic_albums.dart';
 import 'package:aves/model/filters/container/album_group.dart';
 import 'package:aves/model/filters/container/dynamic_album.dart';
+import 'package:aves/model/filters/container/tag_group.dart';
 import 'package:aves/model/filters/covered/stored_album.dart';
 import 'package:aves/model/filters/container/set_or.dart';
+import 'package:aves/model/filters/covered/tag.dart';
 import 'package:aves/model/grouping/common.dart';
 import 'package:aves/model/grouping/convert.dart';
 import 'package:aves/services/common/services.dart';
@@ -16,6 +18,11 @@ void main() {
   const groupName = 'some group name';
   const storedAlbumPath = '/path/to/album';
 
+  setUpAll(() async {
+    albumGrouping.init();
+    tagGrouping.init();
+  });
+
   setUp(() async {
     // specify Posix style path context for consistent behaviour when running tests on Windows
     getIt.registerLazySingleton<p.Context>(() => p.Context(style: p.Style.posix));
@@ -23,7 +30,8 @@ void main() {
   });
 
   tearDown(() async {
-    albumGrouping.init({});
+    albumGrouping.setGroups({});
+    tagGrouping.setGroups({});
     await dynamicAlbums.clear();
     await getIt.reset();
   });
@@ -32,12 +40,19 @@ void main() {
     final storedAlbumFilter = StoredAlbumFilter(storedAlbumPath, 'display name');
     final dynamicAlbumFilter = DynamicAlbumFilter('dynamic name', storedAlbumFilter);
     dynamicAlbums.add(dynamicAlbumFilter);
-    final groupUri = albumGrouping.buildGroupUri(null, groupName);
-    final albumGroupFilter = AlbumGroupFilter(groupUri, SetOrFilter({storedAlbumFilter, dynamicAlbumFilter}));
+    final albumGroupUri = albumGrouping.buildGroupUri(null, groupName);
+    final albumGroupFilter = AlbumGroupFilter(albumGroupUri, SetOrFilter({storedAlbumFilter, dynamicAlbumFilter}));
 
     expect(albumGrouping.uriToFilter(GroupingConversion.filterToUri(storedAlbumFilter)), storedAlbumFilter);
     expect(albumGrouping.uriToFilter(GroupingConversion.filterToUri(dynamicAlbumFilter)), dynamicAlbumFilter);
     expect(albumGrouping.uriToFilter(GroupingConversion.filterToUri(albumGroupFilter)), albumGroupFilter);
+
+    final tagFilter = TagFilter('some tag');
+    final tagGroupUri = tagGrouping.buildGroupUri(null, groupName);
+    final tagGroupFilter = TagGroupFilter(tagGroupUri, SetOrFilter({tagFilter}));
+
+    expect(tagGrouping.uriToFilter(GroupingConversion.filterToUri(tagFilter)), tagFilter);
+    expect(tagGrouping.uriToFilter(GroupingConversion.filterToUri(tagGroupFilter)), tagGroupFilter);
   });
 
   test('Empty group', () {

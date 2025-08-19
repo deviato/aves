@@ -51,18 +51,21 @@ class HomeWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         Log.d(LOG_TAG, "Widget onUpdate widgetIds=${appWidgetIds.contentToString()}")
-        for (widgetId in appWidgetIds) {
-            val widgetInfo = appWidgetManager.getAppWidgetOptions(widgetId)
+        val pendingResult = goAsync()
+        defaultScope.launch {
+            for (widgetId in appWidgetIds) {
+                val widgetInfo = appWidgetManager.getAppWidgetOptions(widgetId)
 
-            val pendingResult = goAsync()
-            defaultScope.launch {
                 val backgroundProps = getProps(context, widgetId, widgetInfo, drawEntryImage = false)
                 updateWidgetImage(context, appWidgetManager, widgetId, backgroundProps)
 
                 val imageProps = getProps(context, widgetId, widgetInfo, drawEntryImage = true, reuseEntry = false)
                 updateWidgetImage(context, appWidgetManager, widgetId, imageProps)
-
+            }
+            try {
                 pendingResult?.finish()
+            } catch (e: Exception) {
+                Log.e(LOG_TAG, "failed to finish update for widgetIds=${appWidgetIds.contentToString()}", e)
             }
         }
     }
@@ -88,7 +91,7 @@ class HomeWidgetProvider : AppWidgetProvider() {
         var sizes: List<SizeF>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             widgetInfo.getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            @Suppress("DEPRECATION")
+            @Suppress("deprecation")
             widgetInfo.getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES)
         } else {
             null

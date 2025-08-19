@@ -11,6 +11,7 @@ import 'package:aves/model/source/collection_source.dart';
 import 'package:aves/model/vaults/vaults.dart';
 import 'package:aves/theme/colors.dart';
 import 'package:aves/theme/durations.dart';
+import 'package:aves/widgets/collection/loading.dart';
 import 'package:aves/widgets/common/basic/draggable_scrollbar/notifications.dart';
 import 'package:aves/widgets/common/basic/draggable_scrollbar/scrollbar.dart';
 import 'package:aves/widgets/common/basic/insets.dart';
@@ -55,6 +56,7 @@ class FilterGridPage<T extends CollectionFilter> extends StatelessWidget {
   final String? settingsRouteKey;
   final Widget appBar;
   final ValueNotifier<double> appBarHeightNotifier;
+  final ScrollController scrollController;
   final Map<ChipSectionKey, List<FilterGridItem<T>>> sections;
   final Set<T> newFilters;
   final ChipSortFactor sortFactor;
@@ -70,6 +72,7 @@ class FilterGridPage<T extends CollectionFilter> extends StatelessWidget {
     this.settingsRouteKey,
     required this.appBar,
     required this.appBarHeightNotifier,
+    required this.scrollController,
     required this.sections,
     required this.newFilters,
     required this.sortFactor,
@@ -98,6 +101,7 @@ class FilterGridPage<T extends CollectionFilter> extends StatelessWidget {
               settingsRouteKey: settingsRouteKey,
               appBar: appBar,
               appBarHeight: MediaQuery.paddingOf(context).top + appBarHeight,
+              scrollController: scrollController,
               sections: sections,
               newFilters: newFilters,
               sortFactor: sortFactor,
@@ -168,6 +172,7 @@ class _FilterGrid<T extends CollectionFilter> extends StatefulWidget {
   final String? settingsRouteKey;
   final Widget appBar;
   final double appBarHeight;
+  final ScrollController scrollController;
   final Map<ChipSectionKey, List<FilterGridItem<T>>> sections;
   final Set<T> newFilters;
   final ChipSortFactor sortFactor;
@@ -181,6 +186,7 @@ class _FilterGrid<T extends CollectionFilter> extends StatefulWidget {
     required this.settingsRouteKey,
     required this.appBar,
     required this.appBarHeight,
+    required this.scrollController,
     required this.sections,
     required this.newFilters,
     required this.sortFactor,
@@ -235,6 +241,7 @@ class _FilterGridState<T extends CollectionFilter> extends State<_FilterGrid<T>>
         child: _FilterGridContent<T>(
           appBar: widget.appBar,
           appBarHeight: widget.appBarHeight,
+          scrollController: widget.scrollController,
           sections: widget.sections,
           newFilters: widget.newFilters,
           sortFactor: widget.sortFactor,
@@ -252,6 +259,7 @@ class _FilterGridState<T extends CollectionFilter> extends State<_FilterGrid<T>>
 class _FilterGridContent<T extends CollectionFilter> extends StatefulWidget {
   final Widget appBar;
   final double appBarHeight;
+  final ScrollController scrollController;
   final Map<ChipSectionKey, List<FilterGridItem<T>>> sections;
   final Set<T> newFilters;
   final ChipSortFactor sortFactor;
@@ -264,6 +272,7 @@ class _FilterGridContent<T extends CollectionFilter> extends StatefulWidget {
     super.key,
     required this.appBar,
     required this.appBarHeight,
+    required this.scrollController,
     required this.sections,
     required this.newFilters,
     required this.sortFactor,
@@ -414,7 +423,7 @@ class _FilterGridContentState<T extends CollectionFilter> extends State<_FilterG
                 selectable: widget.selectable,
                 emptyBuilder: widget.emptyBuilder,
                 bannerBuilder: _getFilterBanner,
-                scrollController: PrimaryScrollController.of(context),
+                scrollController: widget.scrollController,
                 tileLayout: tileLayout,
               ),
             );
@@ -726,7 +735,7 @@ class _FilterScrollView<T extends CollectionFilter> extends StatelessWidget {
               child: isEmpty
                   ? SliverFillRemaining(
                       hasScrollBody: false,
-                      child: emptyBuilder(),
+                      child: _buildEmptyContent(context),
                     )
                   : SectionedListSliver<FilterGridItem<T>>(),
             ),
@@ -735,6 +744,20 @@ class _FilterScrollView<T extends CollectionFilter> extends StatelessWidget {
             const TvTileGridBottomPaddingSliver(),
           ],
         );
+      },
+    );
+  }
+
+  Widget _buildEmptyContent(BuildContext context) {
+    final source = context.read<CollectionSource>();
+    return ValueListenableBuilder<SourceState>(
+      valueListenable: source.stateNotifier,
+      builder: (context, sourceState, child) {
+        if (sourceState == SourceState.loading) {
+          return LoadingEmptyContent(source: source);
+        }
+
+        return emptyBuilder();
       },
     );
   }

@@ -18,6 +18,7 @@ import com.commonsware.cwac.document.DocumentFileCompat
 import deckers.thibault.aves.decoder.AvesAppGlideModule
 import deckers.thibault.aves.metadata.ExifInterfaceHelper
 import deckers.thibault.aves.metadata.ExifInterfaceHelper.getSafeDateMillis
+import deckers.thibault.aves.metadata.Metadata
 import deckers.thibault.aves.metadata.Metadata.TYPE_EXIF
 import deckers.thibault.aves.metadata.Metadata.TYPE_IPTC
 import deckers.thibault.aves.metadata.Metadata.TYPE_MP4
@@ -142,16 +143,18 @@ abstract class ImageProvider {
 
                         val oldFile = File(sourcePath)
                         if (oldFile.nameWithoutExtension != desiredNameWithoutExtension) {
+                            val defaultExtension = oldFile.extension
                             oldFile.parent?.let { dir ->
                                 val resolution = resolveTargetFileNameWithoutExtension(
                                     contextWrapper = activity,
                                     dir = dir,
                                     desiredNameWithoutExtension = desiredNameWithoutExtension,
                                     mimeType = mimeType,
+                                    defaultExtension = defaultExtension,
                                     conflictStrategy = NameConflictStrategy.RENAME,
                                 )
                                 resolution.nameWithoutExtension?.let { targetNameWithoutExtension ->
-                                    val targetFileName = "$targetNameWithoutExtension${extensionFor(mimeType)}"
+                                    val targetFileName = "$targetNameWithoutExtension${extensionFor(mimeType, defaultExtension)}"
                                     val newFile = File(dir, targetFileName)
                                     if (oldFile != newFile) {
                                         newFields = renameSingle(
@@ -277,11 +280,17 @@ abstract class ImageProvider {
             val page = if (sourceMimeType == MimeTypes.TIFF) pageId + 1 else pageId
             desiredNameWithoutExtension += "_${page.toString().padStart(3, '0')}"
         }
+
+        // there is no benefit providing input extension
+        // for known output MIME type
+        val defaultExtension = null
+
         val resolution = resolveTargetFileNameWithoutExtension(
             contextWrapper = activity,
             dir = targetDir,
             desiredNameWithoutExtension = desiredNameWithoutExtension,
             mimeType = exportMimeType,
+            defaultExtension = defaultExtension,
             conflictStrategy = nameConflictStrategy,
         )
         val targetNameWithoutExtension = resolution.nameWithoutExtension ?: return skippedFieldMap
@@ -358,6 +367,7 @@ abstract class ImageProvider {
                 targetDir = targetDir,
                 targetDirDocFile = targetDirDocFile,
                 targetNameWithoutExtension = targetNameWithoutExtension,
+                defaultExtension = defaultExtension,
                 write = write,
             )
 
@@ -465,6 +475,7 @@ abstract class ImageProvider {
                 dir = targetDir,
                 desiredNameWithoutExtension = desiredNameWithoutExtension,
                 mimeType = captureMimeType,
+                defaultExtension = null,
                 conflictStrategy = nameConflictStrategy,
             )
         } catch (e: Exception) {
@@ -571,13 +582,14 @@ abstract class ImageProvider {
         dir: String,
         desiredNameWithoutExtension: String,
         mimeType: String,
+        defaultExtension: String?,
         conflictStrategy: NameConflictStrategy,
     ): NameConflictResolution {
         val sanitizedNameWithoutExtension = sanitizeDesiredFileName(desiredNameWithoutExtension)
         var resolvedName: String? = sanitizedNameWithoutExtension
         var replacementFile: File? = null
 
-        val extension = extensionFor(mimeType)
+        val extension = extensionFor(mimeType, defaultExtension)
         val targetFile = File(dir, "$sanitizedNameWithoutExtension$extension")
         when (conflictStrategy) {
             NameConflictStrategy.RENAME -> {
@@ -612,11 +624,11 @@ abstract class ImageProvider {
     }
 
     // cf `MetadataFetchHandler.getCatalogMetadataByMetadataExtractor()` for a more thorough check
-    private fun detectMimeType(context: Context, uri: Uri, mimeType: String): String? {
+    fun detectMimeType(context: Context, uri: Uri, mimeType: String?, sizeBytes: Long?): String? {
         var detectedMimeType: String? = null
         if (MimeTypes.canReadWithMetadataExtractor(mimeType)) {
             try {
-                StorageUtils.openInputStream(context, uri)?.use { input ->
+                Metadata.openSafeInputStream(context, uri, mimeType, sizeBytes)?.use { input ->
                     detectedMimeType = Helper.readMimeType(input)
                 }
             } catch (e: Exception) {
@@ -680,12 +692,13 @@ abstract class ImageProvider {
         try {
             edit(ExifInterface(editableFile))
 
-            if (editableFile.length() == 0L) {
+            val editableFileSizeBytes = editableFile.length()
+            if (editableFileSizeBytes == 0L) {
                 callback.onFailure(Exception("editing Exif yielded an empty file"))
                 return false
             }
 
-            val editedMimeType = detectMimeType(context, Uri.fromFile(editableFile), mimeType)
+            val editedMimeType = detectMimeType(context, Uri.fromFile(editableFile), mimeType, editableFileSizeBytes)
             if (editedMimeType != mimeType) {
                 throw Exception("editing Exif changes mimeType=$mimeType -> $editedMimeType for uri=$uri path=$path")
             }

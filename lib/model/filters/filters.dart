@@ -2,9 +2,12 @@ import 'dart:convert';
 
 import 'package:aves/model/entry/entry.dart';
 import 'package:aves/model/filters/aspect_ratio.dart';
-import 'package:aves/model/filters/coordinate.dart';
 import 'package:aves/model/filters/container/album_group.dart';
 import 'package:aves/model/filters/container/dynamic_album.dart';
+import 'package:aves/model/filters/container/set_and.dart';
+import 'package:aves/model/filters/container/set_or.dart';
+import 'package:aves/model/filters/container/tag_group.dart';
+import 'package:aves/model/filters/coordinate.dart';
 import 'package:aves/model/filters/covered/location.dart';
 import 'package:aves/model/filters/covered/stored_album.dart';
 import 'package:aves/model/filters/covered/tag.dart';
@@ -17,8 +20,6 @@ import 'package:aves/model/filters/placeholder.dart';
 import 'package:aves/model/filters/query.dart';
 import 'package:aves/model/filters/rating.dart';
 import 'package:aves/model/filters/recent.dart';
-import 'package:aves/model/filters/container/set_and.dart';
-import 'package:aves/model/filters/container/set_or.dart';
 import 'package:aves/model/filters/trash.dart';
 import 'package:aves/model/filters/type.dart';
 import 'package:aves/model/filters/weekday.dart';
@@ -38,6 +39,7 @@ abstract class CollectionFilter extends Equatable implements Comparable<Collecti
     SetOrFilter.type,
     MimeFilter.type,
     AlbumGroupFilter.type,
+    TagGroupFilter.type,
     DynamicAlbumFilter.type,
     StoredAlbumFilter.type,
     TypeFilter.type,
@@ -63,6 +65,8 @@ abstract class CollectionFilter extends Equatable implements Comparable<Collecti
     switch (type) {
       case AlbumGroupFilter.type:
         return AlbumGroupFilter.fromMap(jsonMap);
+      case TagGroupFilter.type:
+        return TagGroupFilter.fromMap(jsonMap);
       case AspectRatioFilter.type:
         return AspectRatioFilter.fromMap(jsonMap);
       case CoordinateFilter.type:

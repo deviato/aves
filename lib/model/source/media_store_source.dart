@@ -60,7 +60,12 @@ class MediaStoreSource extends CollectionSource {
     await localMediaDb.init();
     await vaults.init();
     await favourites.init();
-    albumGrouping.init(settings.albumGroups);
+    albumGrouping.init();
+    albumGrouping.setGroups(settings.albumGroups);
+    albumGrouping.registerSource(this);
+    tagGrouping.init();
+    tagGrouping.setGroups(settings.tagGroups);
+    tagGrouping.registerSource(this);
     await covers.init();
     await dynamicAlbums.init();
 
@@ -101,6 +106,7 @@ class MediaStoreSource extends CollectionSource {
     debugPrint('$runtimeType load ${stopwatch.elapsed} fetch known entries');
     final knownEntries = await localMediaDb.loadEntries(origin: EntryOrigins.mediaStoreContent, directory: scopeDirectory);
     final knownLiveEntries = knownEntries.where((entry) => !entry.trashed).toSet();
+    unawaited(reportService.log('$runtimeType found ${knownEntries.length} known entries'));
 
     debugPrint('$runtimeType load ${stopwatch.elapsed} check obsolete entries');
     final knownDateByContentId = Map.fromEntries(knownLiveEntries.map((entry) => MapEntry(entry.contentId, entry.dateModifiedMillis)));
@@ -208,6 +214,7 @@ class MediaStoreSource extends CollectionSource {
         entry.id = existingEntry?.id ?? localMediaDb.nextId;
 
         newEntries.add(entry);
+        setProgress(done: newEntries.length, total: 0);
       },
       onDone: () async {
         if (newEntries.isNotEmpty) {

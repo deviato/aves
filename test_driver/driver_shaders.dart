@@ -27,7 +27,7 @@ Future<void> configureAndLaunch() async {
     // navigation
     ..keepScreenOn = KeepScreenOn.always
     ..setHome(HomePageSetting.collection)
-    ..enableBottomNavigationBar = true
+    ..bottomNavigationActions = SettingsDefaults.bottomNavigationActions
     // collection
     ..collectionSectionFactor = EntrySectionFactor.album
     ..collectionSortFactor = EntrySortFactor.date
@@ -41,6 +41,6 @@ Future<void> configureAndLaunch() async {
     ..showOverlayThumbnailPreview = true
     ..imageBackground = EntryBackground.checkered
     // map
-    ..mapStyle = EntryMapStyle.googleNormal;
+    ..mapStyle = EntryMapStyles.googleNormal;
   app.main();
 }

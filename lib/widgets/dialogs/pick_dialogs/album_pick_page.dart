@@ -31,6 +31,7 @@ import 'package:aves/widgets/dialogs/filter_editors/edit_vault_dialog.dart';
 import 'package:aves/widgets/filter_grids/albums_page.dart';
 import 'package:aves/widgets/filter_grids/common/action_delegates/album_set.dart';
 import 'package:aves/widgets/filter_grids/common/app_bar.dart';
+import 'package:aves/widgets/filter_grids/common/enums.dart';
 import 'package:aves/widgets/filter_grids/common/filter_grid_page.dart';
 import 'package:aves_model/aves_model.dart';
 import 'package:flutter/material.dart';
@@ -40,7 +41,7 @@ import 'package:provider/provider.dart';
 Future<AlbumBaseFilter?> pickAlbum({
   required BuildContext context,
   required MoveType? moveType,
-  required Iterable<AlbumChipType> albumChipTypes,
+  required Iterable<AlbumChipType> chipTypes,
   required Uri? initialGroup,
 }) async {
   final source = context.read<CollectionSource>();
@@ -56,7 +57,7 @@ Future<AlbumBaseFilter?> pickAlbum({
       builder: (context) => _AlbumPickPage(
         source: source,
         moveType: moveType,
-        albumChipTypes: albumChipTypes,
+        chipTypes: chipTypes,
         initialGroup: initialGroup,
       ),
     ),
@@ -68,13 +69,13 @@ class _AlbumPickPage extends StatefulWidget {
 
   final CollectionSource source;
   final MoveType? moveType;
-  final Iterable<AlbumChipType> albumChipTypes;
+  final Iterable<AlbumChipType> chipTypes;
   final Uri? initialGroup;
 
   const _AlbumPickPage({
     required this.source,
     required this.moveType,
-    required this.albumChipTypes,
+    required this.chipTypes,
     required this.initialGroup,
   });
 
@@ -88,7 +89,7 @@ class _AlbumPickPageState extends State<_AlbumPickPage> with FeedbackMixin, Vaul
 
   CollectionSource get source => widget.source;
 
-  Iterable<AlbumChipType> get albumChipTypes => widget.albumChipTypes;
+  Iterable<AlbumChipType> get albumChipTypes => widget.chipTypes;
 
   bool get isPickingGroup => albumChipTypes.length == 1 && albumChipTypes.contains(AlbumChipType.group);
 
@@ -132,7 +133,8 @@ class _AlbumPickPageState extends State<_AlbumPickPage> with FeedbackMixin, Vaul
                   stream: source.eventBus.on<AlbumsChangedEvent>(),
                   builder: (context, snapshot) {
                     final groupUri = context.watch<FilterGroupNotifier>().value;
-                    final gridItems = AlbumListPage.getAlbumGridItems(context, source, albumChipTypes, groupUri);
+                    final gridItems = AlbumListPage.getGridItems(context, source, albumChipTypes, groupUri);
+                    final scrollController = PrimaryScrollController.of(context);
                     return SelectionProvider<FilterGridItem<AlbumBaseFilter>>(
                       child: QueryProvider(
                         startEnabled: settings.getShowTitleQuery(context.currentRouteName!),
@@ -145,8 +147,10 @@ class _AlbumPickPageState extends State<_AlbumPickPage> with FeedbackMixin, Vaul
                             actionsBuilder: _buildActions,
                             isEmpty: false,
                             appBarHeightNotifier: _appBarHeightNotifier,
+                            scrollController: scrollController,
                           ),
                           appBarHeightNotifier: _appBarHeightNotifier,
+                          scrollController: scrollController,
                           sections: AlbumListPage.groupToSections(context, source, gridItems),
                           newFilters: source.getNewAlbumFilters(context),
                           sortFactor: settings.albumSortFactor,
