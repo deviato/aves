@@ -20,7 +20,6 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.core.net.toUri
 import app.loup.streams_channel.StreamsChannel
-import deckers.thibault.aves.channel.AvesByteSendingMethodCodec
 import deckers.thibault.aves.channel.calls.AccessibilityHandler
 import deckers.thibault.aves.channel.calls.AnalysisHandler
 import deckers.thibault.aves.channel.calls.AppAdapterHandler
@@ -33,7 +32,6 @@ import deckers.thibault.aves.channel.calls.GeocodingHandler
 import deckers.thibault.aves.channel.calls.GlobalSearchHandler
 import deckers.thibault.aves.channel.calls.HomeWidgetHandler
 import deckers.thibault.aves.channel.calls.MediaEditHandler
-import deckers.thibault.aves.channel.calls.MediaFetchBytesHandler
 import deckers.thibault.aves.channel.calls.MediaFetchObjectHandler
 import deckers.thibault.aves.channel.calls.MediaSessionHandler
 import deckers.thibault.aves.channel.calls.MediaStoreHandler
@@ -44,16 +42,16 @@ import deckers.thibault.aves.channel.calls.StorageHandler
 import deckers.thibault.aves.channel.calls.WallpaperHandler
 import deckers.thibault.aves.channel.calls.window.ActivityWindowHandler
 import deckers.thibault.aves.channel.calls.window.WindowHandler
-import deckers.thibault.aves.channel.streams.ActivityResultStreamHandler
-import deckers.thibault.aves.channel.streams.AnalysisStreamHandler
-import deckers.thibault.aves.channel.streams.ErrorStreamHandler
-import deckers.thibault.aves.channel.streams.ImageByteStreamHandler
-import deckers.thibault.aves.channel.streams.ImageOpStreamHandler
-import deckers.thibault.aves.channel.streams.IntentStreamHandler
-import deckers.thibault.aves.channel.streams.MediaCommandStreamHandler
-import deckers.thibault.aves.channel.streams.MediaStoreChangeStreamHandler
-import deckers.thibault.aves.channel.streams.MediaStoreStreamHandler
-import deckers.thibault.aves.channel.streams.SettingsChangeStreamHandler
+import deckers.thibault.aves.channel.streams.darttoplatform.ActivityResultStreamHandler
+import deckers.thibault.aves.channel.streams.darttoplatform.ImageByteStreamHandler
+import deckers.thibault.aves.channel.streams.darttoplatform.ImageOpStreamHandler
+import deckers.thibault.aves.channel.streams.darttoplatform.MediaStoreStreamHandler
+import deckers.thibault.aves.channel.streams.platformtodart.AnalysisStreamHandler
+import deckers.thibault.aves.channel.streams.platformtodart.ErrorStreamHandler
+import deckers.thibault.aves.channel.streams.platformtodart.IntentStreamHandler
+import deckers.thibault.aves.channel.streams.platformtodart.MediaCommandStreamHandler
+import deckers.thibault.aves.channel.streams.platformtodart.MediaStoreChangeStreamHandler
+import deckers.thibault.aves.channel.streams.platformtodart.SettingsChangeStreamHandler
 import deckers.thibault.aves.model.FieldMap
 import deckers.thibault.aves.utils.LogUtils
 import deckers.thibault.aves.utils.anyCauseIs
@@ -140,7 +138,6 @@ open class MainActivity : FlutterFragmentActivity() {
         MethodChannel(messenger, GeocodingHandler.CHANNEL).setMethodCallHandler(GeocodingHandler(this))
         MethodChannel(messenger, GlobalSearchHandler.CHANNEL).setMethodCallHandler(GlobalSearchHandler(this))
         MethodChannel(messenger, HomeWidgetHandler.CHANNEL).setMethodCallHandler(HomeWidgetHandler(this))
-        MethodChannel(messenger, MediaFetchBytesHandler.CHANNEL, AvesByteSendingMethodCodec.INSTANCE).setMethodCallHandler(MediaFetchBytesHandler(this))
         MethodChannel(messenger, MediaFetchObjectHandler.CHANNEL).setMethodCallHandler(MediaFetchObjectHandler(this))
         MethodChannel(messenger, MediaSessionHandler.CHANNEL).setMethodCallHandler(mediaSessionHandler)
         MethodChannel(messenger, MediaStoreHandler.CHANNEL).setMethodCallHandler(MediaStoreHandler(this))
@@ -621,7 +618,7 @@ open class MainActivity : FlutterFragmentActivity() {
 
         private var errorStreamHandler: ErrorStreamHandler? = null
 
-        suspend fun notifyError(error: String) {
+        fun notifyError(error: String) {
             Log.e(LOG_TAG, "notifyError error=$error")
             errorStreamHandler?.notifyError(error)
         }

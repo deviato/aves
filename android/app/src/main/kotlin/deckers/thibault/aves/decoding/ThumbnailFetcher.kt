@@ -1,4 +1,4 @@
-package deckers.thibault.aves.channel.calls.fetchers
+package deckers.thibault.aves.decoding
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -15,8 +15,9 @@ import com.bumptech.glide.load.DecodeFormat
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.signature.ObjectKey
-import deckers.thibault.aves.decoder.AvesAppGlideModule
-import deckers.thibault.aves.decoder.MultiPageImage
+import deckers.thibault.aves.channel.streams.darttoplatform.ByteSink
+import deckers.thibault.aves.glide.AvesAppGlideModule
+import deckers.thibault.aves.glide.MultiPageImage
 import deckers.thibault.aves.utils.BitmapUtils
 import deckers.thibault.aves.utils.BitmapUtils.applyExifOrientation
 import deckers.thibault.aves.utils.LogUtils
@@ -27,23 +28,24 @@ import deckers.thibault.aves.utils.MimeTypes.needRotationAfterContentResolverThu
 import deckers.thibault.aves.utils.MimeTypes.needRotationAfterGlide
 import deckers.thibault.aves.utils.StorageUtils
 import deckers.thibault.aves.utils.UriUtils.tryParseId
-import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayInputStream
 import kotlin.math.min
 import kotlin.math.roundToInt
 
 class ThumbnailFetcher internal constructor(
     private val context: Context,
     uri: String,
+    private val pageId: Int?,
+    private val decoded: Boolean,
     private val mimeType: String,
     private val dateModifiedMillis: Long,
     private val rotationDegrees: Int,
     private val isFlipped: Boolean,
     width: Int?,
     height: Int?,
-    private val pageId: Int?,
     private val defaultSize: Int,
     private val quality: Int,
-    private val result: MethodChannel.Result,
+    private val result: ByteSink,
 ) {
     private val uri: Uri = uri.toUri()
     private val width: Int = if (width?.takeIf { it > 0 } != null) width else defaultSize
@@ -53,7 +55,7 @@ class ThumbnailFetcher internal constructor(
     private val multiPageFetch = pageId != null && MultiPageImage.isSupported(mimeType)
     private val customFetch = svgFetch || tiffFetch || multiPageFetch
 
-    fun fetch() {
+    suspend fun fetch() {
         var bitmap: Bitmap? = null
         var exception: Exception? = null
 
@@ -106,16 +108,15 @@ class ThumbnailFetcher internal constructor(
         }
 
         // do not recycle bitmaps fetched from `ContentResolver` or Glide as their lifecycle is unknown
-        val recycle = false
-        val bytes = BitmapUtils.getRawBytes(bitmap, recycle = recycle)
-        if (bytes != null) {
-            result.success(bytes)
-        } else {
+        val bytes = BitmapUtils.getBytes(bitmap, recycle = false, decoded = decoded, mimeType)
+        if (bytes == null) {
             var errorDetails: String? = exception?.message
             if (errorDetails?.isNotEmpty() == true) {
                 errorDetails = errorDetails.split(Regex("\n"), 2).first()
             }
             result.error("getThumbnail-null", "failed to get thumbnail for mimeType=$mimeType uri=$uri", errorDetails)
+        } else {
+            result.streamBytes(ByteArrayInputStream(bytes))
         }
     }
 
