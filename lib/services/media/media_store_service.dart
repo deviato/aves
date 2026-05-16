@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:aves/model/entry/entry.dart';
+import 'package:aves/services/common/channel.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:flutter/services.dart';
-import 'package:streams_channel/streams_channel.dart';
 
 abstract class MediaStoreService {
   Future<List<int>> checkObsoleteContentIds(List<int?> knownContentIds);
@@ -22,13 +22,13 @@ abstract class MediaStoreService {
 }
 
 class PlatformMediaStoreService implements MediaStoreService {
-  static const _platform = MethodChannel('deckers.thibault/aves/media_store');
-  static final _stream = StreamsChannel('deckers.thibault/aves/media_store_stream');
+  static const _platform = AvesMethodChannel('deckers.thibault/aves/media_store');
+  static final _stream = AvesStreamsChannel('deckers.thibault/aves/media_store_stream');
 
   @override
   Future<List<int>> checkObsoleteContentIds(List<int?> knownContentIds) async {
     try {
-      final result = await _platform.invokeMethod('checkObsoleteContentIds', <String, dynamic>{
+      final result = await _platform.invokeMethod('checkObsoleteContentIds', <String, Object?>{
         'knownContentIds': knownContentIds,
       });
       return (result as List).cast<int>();
@@ -41,7 +41,7 @@ class PlatformMediaStoreService implements MediaStoreService {
   @override
   Future<List<int>> checkObsoletePaths(Map<int?, String?> knownPathById) async {
     try {
-      final result = await _platform.invokeMethod('checkObsoletePaths', <String, dynamic>{
+      final result = await _platform.invokeMethod('checkObsoletePaths', <String, Object?>{
         'knownPathById': knownPathById,
       });
       return (result as List).cast<int>();
@@ -54,7 +54,7 @@ class PlatformMediaStoreService implements MediaStoreService {
   @override
   Future<List<String>> getChangedUris(int sinceGeneration) async {
     try {
-      final result = await _platform.invokeMethod('getChangedUris', <String, dynamic>{
+      final result = await _platform.invokeMethod('getChangedUris', <String, Object?>{
         'sinceGeneration': sinceGeneration,
       });
       return (result as List).cast<String>();
@@ -80,7 +80,7 @@ class PlatformMediaStoreService implements MediaStoreService {
   Stream<AvesEntry> getEntries(Map<int?, int?> knownEntries, {String? directory}) {
     try {
       return _stream
-          .receiveBroadcastStream(<String, dynamic>{
+          .receiveBroadcastStream(<String, Object?>{
             'knownEntries': knownEntries,
             'directory': directory,
           })
@@ -100,7 +100,7 @@ class PlatformMediaStoreService implements MediaStoreService {
   @override
   Future<Uri?> scanFile(String path, String mimeType) async {
     try {
-      final result = await _platform.invokeMethod('scanFile', <String, dynamic>{
+      final result = await _platform.invokeMethod('scanFile', <String, Object?>{
         'path': path,
         'mimeType': mimeType,
       });

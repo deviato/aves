@@ -30,19 +30,19 @@ class PathFilter extends CollectionFilter {
     };
   }
 
-  factory PathFilter.fromMap(Map<String, dynamic> json) {
+  factory PathFilter.fromMap(Map<String, Object?> json) {
     return PathFilter(
-      json['path'],
-      reversed: json['reversed'] ?? false,
+      json['path'] as String,
+      reversed: json['reversed'] as bool? ?? false,
     );
   }
 
   @override
-  Map<String, dynamic> toMap() => {
-        'type': type,
-        'path': path,
-        'reversed': reversed,
-      };
+  Map<String, Object?> toMap() => {
+    'type': type,
+    'path': path,
+    'reversed': reversed,
+  };
 
   @override
   EntryPredicate get positiveTest => _test;
@@ -62,6 +62,9 @@ class PathFilter extends CollectionFilter {
     }
     return pContext.split(_directory.relativeDir).last;
   }
+
+  @override
+  String getTooltip(BuildContext context) => path;
 
   @override
   Widget? iconBuilder(BuildContext context, double size, {bool allowGenericIcon = true}) => Icon(AIcons.path, size: size);

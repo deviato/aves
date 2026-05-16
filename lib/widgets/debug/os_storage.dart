@@ -48,13 +48,13 @@ class _DebugOSStorageSectionState extends State<DebugOSStorageSection> with Auto
                   'isPrimary': '${v.isPrimary}',
                   'isRemovable': '${v.isRemovable}',
                   'state': v.state,
-                  if (freeSpace != null) 'freeSpace': formatFileSize(asciiLocale, freeSpace),
+                  if (freeSpace != null) 'freeSpace': formatFileSize(kAsciiLocale, freeSpace),
                 },
               ),
             ),
             const Divider(),
           ];
-        })
+        }),
       ],
     );
   }

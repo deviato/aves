@@ -43,6 +43,7 @@ Future<AlbumBaseFilter?> pickAlbum({
   required MoveType? moveType,
   required Iterable<AlbumChipType> chipTypes,
   required Uri? initialGroup,
+  GroupUriPredicate? isValidGroupPick,
 }) async {
   final source = context.read<CollectionSource>();
   if (source.targetScope != CollectionSource.fullScope) {
@@ -59,6 +60,7 @@ Future<AlbumBaseFilter?> pickAlbum({
         moveType: moveType,
         chipTypes: chipTypes,
         initialGroup: initialGroup,
+        isValidGroupPick: isValidGroupPick,
       ),
     ),
   );
@@ -71,12 +73,14 @@ class _AlbumPickPage extends StatefulWidget {
   final MoveType? moveType;
   final Iterable<AlbumChipType> chipTypes;
   final Uri? initialGroup;
+  final GroupUriPredicate? isValidGroupPick;
 
   const _AlbumPickPage({
     required this.source,
     required this.moveType,
     required this.chipTypes,
     required this.initialGroup,
+    required this.isValidGroupPick,
   });
 
   @override
@@ -92,6 +96,8 @@ class _AlbumPickPageState extends State<_AlbumPickPage> with FeedbackMixin, Vaul
   Iterable<AlbumChipType> get albumChipTypes => widget.chipTypes;
 
   bool get isPickingGroup => albumChipTypes.length == 1 && albumChipTypes.contains(AlbumChipType.group);
+
+  bool get canPickGroupFromCrumbLine => albumChipTypes == AlbumChipType.values;
 
   String get title {
     final l10n = context.l10n;
@@ -145,9 +151,9 @@ class _AlbumPickPageState extends State<_AlbumPickPage> with FeedbackMixin, Vaul
                             title: title,
                             actionDelegate: AlbumChipSetActionDelegate(gridItems),
                             actionsBuilder: _buildActions,
-                            isEmpty: false,
                             appBarHeightNotifier: _appBarHeightNotifier,
                             scrollController: scrollController,
+                            onGroupCrumbTap: canPickGroupFromCrumbLine ? _pickFilter : null,
                           ),
                           appBarHeightNotifier: _appBarHeightNotifier,
                           scrollController: scrollController,
@@ -193,16 +199,24 @@ class _AlbumPickPageState extends State<_AlbumPickPage> with FeedbackMixin, Vaul
 
   Widget? _buildFab(BuildContext context) {
     return isPickingGroup
-        ? FloatingActionButton.extended(
-            onPressed: () {
-              final groupUri = context.read<FilterGroupNotifier>().value;
-              final filter = groupUri != null ? albumGrouping.uriToFilter(groupUri) : AlbumGroupFilter.root;
-              if (filter is AlbumBaseFilter) {
-                _pickFilter(context, filter);
-              }
+        ? Selector<FilterGroupNotifier, Uri?>(
+            selector: (context, v) => v.value,
+            builder: (context, groupUri, child) {
+              final isValid = widget.isValidGroupPick?.call(groupUri) ?? true;
+              return FloatingActionButton.extended(
+                onPressed: isValid
+                    ? () {
+                        final filter = groupUri != null ? albumGrouping.uriToFilter(groupUri) : AlbumGroupFilter.root;
+                        if (filter is AlbumBaseFilter) {
+                          _pickFilter(context, filter);
+                        }
+                      }
+                    : null,
+                backgroundColor: isValid ? null: Theme.of(context).disabledColor,
+                icon: const Icon(AIcons.apply),
+                label: Text(context.l10n.groupPickerUseThisGroupButton),
+              );
             },
-            icon: const Icon(AIcons.apply),
-            label: Text(context.l10n.groupPickerUseThisGroupButton),
           )
         : null;
   }
@@ -219,21 +233,21 @@ class _AlbumPickPageState extends State<_AlbumPickPage> with FeedbackMixin, Vaul
     final selectedFilters = selectedItems.map((v) => v.filter).toSet();
 
     bool isVisible(ChipSetAction action) => actionDelegate.isVisible(
-          action,
-          appMode: appMode,
-          isSelecting: isSelecting,
-          itemCount: itemCount,
-          selectedFilters: selectedFilters,
-        );
+      action,
+      appMode: appMode,
+      isSelecting: isSelecting,
+      itemCount: itemCount,
+      selectedFilters: selectedFilters,
+    );
 
     void onActionSelected(ChipSetAction action) {
       switch (action) {
-        case ChipSetAction.createGroup:
+        case .createGroup:
           final parentGroupUri = context.read<FilterGroupNotifier>().value;
           _createGroup(parentGroupUri);
-        case ChipSetAction.createAlbum:
+        case .createAlbum:
           _createAlbum();
-        case ChipSetAction.createVault:
+        case .createVault:
           _createVault();
         default:
           actionDelegate.onActionSelected(context, action);
@@ -290,11 +304,13 @@ class _AlbumPickPageState extends State<_AlbumPickPage> with FeedbackMixin, Vaul
       if (canCreateStoredAlbums) ...[
         null,
         ChipSetAction.createVault,
-      ]
+      ],
     ];
 
     return [
-      ...quickActions.where(isVisible).map(
+      ...quickActions
+          .where(isVisible)
+          .map(
             (action) => IconButton(
               icon: action.getIcon(),
               onPressed: () => onActionSelected(action),

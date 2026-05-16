@@ -3,23 +3,40 @@ import 'package:aves/ref/mime_types.dart';
 class AppSupport {
   // TODO TLAD [codec] make it dynamic if it depends on OS/lib versions
   static const Set<String> undecodableImages = {
+    // unsupported
+    MimeTypes.aces,
     MimeTypes.art,
     MimeTypes.cdr,
-    MimeTypes.crw,
+    MimeTypes.cdrt,
+    MimeTypes.cpt,
     MimeTypes.djvu,
     MimeTypes.dwg,
     MimeTypes.dxf,
-    MimeTypes.flic,
+    MimeTypes.emf,
+    MimeTypes.jng,
     MimeTypes.jpeg2000,
+    MimeTypes.jpx,
     MimeTypes.jxl,
     MimeTypes.pat,
     MimeTypes.pcx,
+    MimeTypes.pbm,
+    MimeTypes.pgm,
     MimeTypes.pnm,
+    MimeTypes.ppm,
     MimeTypes.psdVnd,
     MimeTypes.psdX,
-    MimeTypes.octetStream,
+    MimeTypes.ras,
     MimeTypes.rgbe,
+    MimeTypes.sgif,
     MimeTypes.tap,
+    MimeTypes.vtf,
+    MimeTypes.wmf,
+    MimeTypes.xbm,
+    MimeTypes.xpm,
+    // RAW
+    MimeTypes.crw,
+    // non-media
+    MimeTypes.octetStream,
     MimeTypes.zip,
   };
 

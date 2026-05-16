@@ -22,13 +22,13 @@ import 'package:aves/services/media/enums.dart';
 import 'package:aves/theme/durations.dart';
 import 'package:aves/utils/android_file_utils.dart';
 import 'package:aves/view/view.dart';
+import 'package:aves/widgets/common/action_mixins/entry_editor.dart';
 import 'package:aves/widgets/common/action_mixins/entry_storage.dart';
 import 'package:aves/widgets/common/action_mixins/feedback.dart';
 import 'package:aves/widgets/common/extensions/build_context.dart';
 import 'package:aves/widgets/common/providers/filter_group_provider.dart';
 import 'package:aves/widgets/common/tile_extent_controller.dart';
 import 'package:aves/widgets/dialogs/aves_confirmation_dialog.dart';
-import 'package:aves/widgets/dialogs/aves_dialog.dart';
 import 'package:aves/widgets/dialogs/filter_editors/create_stored_album_dialog.dart';
 import 'package:aves/widgets/dialogs/filter_editors/edit_vault_dialog.dart';
 import 'package:aves/widgets/dialogs/filter_editors/rename_dynamic_album_dialog.dart';
@@ -45,7 +45,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 
-class AlbumChipSetActionDelegate extends ChipSetActionDelegate<AlbumBaseFilter> with EntryStorageMixin {
+class AlbumChipSetActionDelegate extends ChipSetActionDelegate<AlbumBaseFilter> with EntryEditorMixin, EntryStorageMixin {
   final Iterable<FilterGridItem<AlbumBaseFilter>> _items;
 
   AlbumChipSetActionDelegate(Iterable<FilterGridItem<AlbumBaseFilter>> items) : _items = items;
@@ -91,24 +91,22 @@ class AlbumChipSetActionDelegate extends ChipSetActionDelegate<AlbumBaseFilter> 
     bool isVault(CollectionFilter filter) => filter is StoredAlbumFilter && filter.isVault;
 
     switch (action) {
-      case ChipSetAction.createGroup:
+      case .createGroup:
         return true;
-      case ChipSetAction.createAlbum:
-      case ChipSetAction.createVault:
+      case .createAlbum:
+      case .createVault:
         return !settings.isReadOnly && appMode.canCreateFilter && !isSelecting;
-      case ChipSetAction.group:
+      case .group:
         return isMain && isSelecting;
-      case ChipSetAction.delete:
+      case .delete:
         return isMain && isSelecting && !settings.isReadOnly && (selectedFilters.isEmpty || selectedFilters.every((v) => v is StoredAlbumFilter));
-      case ChipSetAction.remove:
+      case .remove:
         return isMain && isSelecting && !settings.isReadOnly && selectedFilters.isNotEmpty && selectedFilters.every((v) => v is DynamicAlbumFilter);
-      case ChipSetAction.rename:
+      case .rename:
         return isMain && isSelecting && !settings.isReadOnly;
-      case ChipSetAction.hide:
-        return isMain && selectedFilters.none(isVault);
-      case ChipSetAction.configureVault:
+      case .configureVault:
         return isMain && selectedSingleItem && isVault(selectedFilters.first);
-      case ChipSetAction.lockVault:
+      case .lockVault:
         return isMain && selectedFilters.any(isVault);
       default:
         return super.isVisible(
@@ -128,22 +126,17 @@ class AlbumChipSetActionDelegate extends ChipSetActionDelegate<AlbumBaseFilter> 
     required int itemCount,
     required Set<AlbumBaseFilter> selectedFilters,
   }) {
-    final selectedItemCount = selectedFilters.length;
-    final hasSelection = selectedItemCount > 0;
-
     switch (action) {
-      case ChipSetAction.delete:
+      case .delete:
         return selectedFilters.isNotEmpty && selectedFilters.every((v) => v is StoredAlbumFilter);
-      case ChipSetAction.rename:
+      case .rename:
         if (selectedFilters.length != 1) return false;
         final filter = selectedFilters.first;
         if (filter is StoredAlbumFilter) return filter.canRename;
         return true;
-      case ChipSetAction.hide:
-        return hasSelection;
-      case ChipSetAction.lockVault:
+      case .lockVault:
         return selectedFilters.whereType<StoredAlbumFilter>().map((v) => v.album).any((v) => vaults.isVault(v) && !vaults.isLocked(v));
-      case ChipSetAction.configureVault:
+      case .configureVault:
         return true;
       default:
         return super.canApply(
@@ -160,24 +153,24 @@ class AlbumChipSetActionDelegate extends ChipSetActionDelegate<AlbumBaseFilter> 
     reportService.log('$runtimeType handles $action');
     switch (action) {
       // general
-      case ChipSetAction.createAlbum:
+      case .createAlbum:
         _createStoredAlbum(context, locked: false);
-      case ChipSetAction.createVault:
+      case .createVault:
         _createStoredAlbum(context, locked: true);
       // single/multiple filters
-      case ChipSetAction.delete:
+      case .delete:
         _deleteStoredAlbums(context);
-      case ChipSetAction.remove:
+      case .remove:
         _removeDynamicAlbum(context);
-      case ChipSetAction.group:
+      case .group:
         _group(context);
-      case ChipSetAction.lockVault:
+      case .lockVault:
         lockFilters(_getSelectedStoredAlbumFilters(context));
         browse(context);
       // single filter
-      case ChipSetAction.rename:
+      case .rename:
         _rename(context);
-      case ChipSetAction.configureVault:
+      case .configureVault:
         _configureVault(context);
       default:
         break;
@@ -311,12 +304,13 @@ class AlbumChipSetActionDelegate extends ChipSetActionDelegate<AlbumBaseFilter> 
       return details?.useBin ?? settings.enableBin;
     });
     await Future.forEach(
-        byBinUsage.entries,
-        (kv) => _doDelete(
-              context: context,
-              filters: kv.value.toSet(),
-              enableBin: kv.key,
-            ));
+      byBinUsage.entries,
+      (kv) => _doDelete(
+        context: context,
+        filters: kv.value.toSet(),
+        enableBin: kv.key,
+      ),
+    );
     browse(context);
   }
 
@@ -350,21 +344,13 @@ class AlbumChipSetActionDelegate extends ChipSetActionDelegate<AlbumBaseFilter> 
     final l10n = context.l10n;
     final todoCount = todoEntries.length;
 
-    final confirmed = await showDialog<bool>(
+    if (!await showConfirmationDialog(
       context: context,
-      builder: (context) => AvesDialog(
-        content: Text(filters.length == 1 ? l10n.deleteSingleAlbumConfirmationDialogMessage(todoCount) : l10n.deleteMultiAlbumConfirmationDialogMessage(todoCount)),
-        actions: [
-          const CancelButton(),
-          TextButton(
-            onPressed: () => Navigator.maybeOf(context)?.pop(true),
-            child: Text(l10n.deleteButtonLabel),
-          ),
-        ],
-      ),
-      routeSettings: const RouteSettings(name: AvesDialog.confirmationRouteName),
-    );
-    if (confirmed == null || !confirmed) return;
+      message: filters.length == 1 ? l10n.deleteSingleAlbumConfirmationDialogMessage(todoCount) : l10n.deleteMultiAlbumConfirmationDialogMessage(todoCount),
+      ok: l10n.deleteButtonLabel,
+    )) {
+      return;
+    }
 
     settings.pinnedFilters = settings.pinnedFilters..removeAll(filters);
     source.forgetNewAlbums(todoAlbums);
@@ -421,21 +407,14 @@ class AlbumChipSetActionDelegate extends ChipSetActionDelegate<AlbumBaseFilter> 
 
   Future<void> _removeDynamicAlbum(BuildContext context) async {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
+
+    if (!await showConfirmationDialog(
       context: context,
-      builder: (context) => AvesDialog(
-        content: Text(l10n.genericDangerWarningDialogMessage),
-        actions: [
-          const CancelButton(),
-          TextButton(
-            onPressed: () => Navigator.maybeOf(context)?.pop(true),
-            child: Text(l10n.applyButtonLabel),
-          ),
-        ],
-      ),
-      routeSettings: const RouteSettings(name: AvesDialog.warningRouteName),
-    );
-    if (confirmed == null || !confirmed) return;
+      message: l10n.genericDangerWarningDialogMessage,
+      ok: l10n.applyButtonLabel,
+    )) {
+      return;
+    }
 
     final albumFilters = _getSelectedDynamicAlbumFilters(context);
     final names = albumFilters.map((v) => v.name).toSet();
@@ -461,6 +440,9 @@ class AlbumChipSetActionDelegate extends ChipSetActionDelegate<AlbumBaseFilter> 
       moveType: null,
       chipTypes: {AlbumChipType.group},
       initialGroup: initialGroup,
+      isValidGroupPick: (destinationGroupUri) {
+        return FilterGrouping.isValidParent(destinationGroupUri, childrenUris);
+      },
     );
     if (filter == null) return;
 
@@ -558,6 +540,8 @@ class AlbumChipSetActionDelegate extends ChipSetActionDelegate<AlbumBaseFilter> 
       // access to the destination parent is required to create the underlying destination folder
       if (!await checkStoragePermissionForAlbums(context, {destinationAlbumParent})) return;
     }
+
+    if (!await checkUndatedItems(context, todoEntries)) return;
 
     source.pauseMonitoring();
     final opId = mediaEditService.newOpId;

@@ -6,8 +6,9 @@ import 'package:aves/model/entry/extensions/location.dart';
 import 'package:aves/model/settings/settings.dart';
 import 'package:aves/ref/mime_types.dart';
 import 'package:aves/services/android_debug_service.dart';
-import 'package:aves/services/geocoding_service.dart';
+import 'package:aves/services/common/services.dart';
 import 'package:aves/widgets/common/identity/aves_expansion_tile.dart';
+import 'package:aves/widgets/viewer/debug/utils.dart';
 import 'package:aves/widgets/viewer/info/common.dart';
 import 'package:flutter/material.dart';
 
@@ -30,7 +31,7 @@ class _MetadataTabState extends State<MetadataTab> {
 
   // MediaStore timestamp keys
   static const secondTimestampKeys = ['date_added', 'date_modified', 'date_expires', 'isPlayed'];
-  static const millisecondTimestampKeys = ['datetaken', 'datetime'];
+  static const millisecondTimestampKeys = ['datetaken', 'datetime', 'inferred_date'];
 
   AvesEntry get entry => widget.entry;
 
@@ -50,7 +51,7 @@ class _MetadataTabState extends State<MetadataTab> {
     _pixyMetaLoader = AndroidDebugService.getPixyMetadata(entry);
     _tiffStructureLoader = AndroidDebugService.getTiffStructure(entry);
     _addressLoader = entry.hasGps
-        ? GeocodingService.getAddress(entry.latLng!, settings.appliedLocale).then((addresses) {
+        ? geocodingService.getAddress(entry.latLng!, settings.appliedLocale).then((addresses) {
             if (addresses.isNotEmpty) {
               final address = addresses.first;
               return {
@@ -76,24 +77,19 @@ class _MetadataTabState extends State<MetadataTab> {
   @override
   Widget build(BuildContext context) {
     Widget builderFromSnapshotData(BuildContext context, Map snapshotData, String title) {
-      final data = SplayTreeMap.of(snapshotData.map((k, v) {
-        final key = k.toString();
-        var value = v?.toString() ?? 'null';
-        if ([...secondTimestampKeys, ...millisecondTimestampKeys].contains(key) && v is int && v != 0) {
-          if (secondTimestampKeys.contains(key)) {
-            v *= 1000;
+      final data = SplayTreeMap.of(
+        snapshotData.map((k, v) {
+          final key = k.toString();
+          var value = v?.toString() ?? 'null';
+          if ([...secondTimestampKeys, ...millisecondTimestampKeys].contains(key) && v is int && v != 0) {
+            value = ViewerDebugUtils.toDateValue(v, factor: secondTimestampKeys.contains(key) ? 1000 : 1);
           }
-          try {
-            value += ' (${DateTime.fromMillisecondsSinceEpoch(v)})';
-          } catch (error) {
-            value += ' (invalid DateTime})';
+          if (key == 'xmp' && v != null && v is Uint8List) {
+            value = String.fromCharCodes(v);
           }
-        }
-        if (key == 'xmp' && v != null && v is Uint8List) {
-          value = String.fromCharCodes(v);
-        }
-        return MapEntry(key, value);
-      }));
+          return MapEntry(key, value);
+        }),
+      );
       return AvesExpansionTile(
         title: title,
         children: [
@@ -101,7 +97,7 @@ class _MetadataTabState extends State<MetadataTab> {
             Padding(
               padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
               child: InfoRowGroup(info: data),
-            )
+            ),
         ],
       );
     }
@@ -151,7 +147,7 @@ class _MetadataTabState extends State<MetadataTab> {
                       scrollDirection: Axis.horizontal,
                       child: SelectableText(data),
                     ),
-                  )
+                  ),
               ],
             );
           },

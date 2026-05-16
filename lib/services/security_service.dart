@@ -1,3 +1,4 @@
+import 'package:aves/services/common/channel.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:flutter/services.dart';
 
@@ -8,12 +9,12 @@ abstract class SecurityService {
 }
 
 class PlatformSecurityService implements SecurityService {
-  static const _platform = MethodChannel('deckers.thibault/aves/security');
+  static const _platform = AvesMethodChannel('deckers.thibault/aves/security');
 
   @override
   Future<bool> writeValue<T>(String key, T? value) async {
     try {
-      await _platform.invokeMethod('writeValue', <String, dynamic>{
+      await _platform.invokeMethod('writeValue', <String, Object?>{
         'key': key,
         'value': value,
       });
@@ -27,7 +28,7 @@ class PlatformSecurityService implements SecurityService {
   @override
   Future<T?> readValue<T>(String key) async {
     try {
-      final result = await _platform.invokeMethod('readValue', <String, dynamic>{
+      final result = await _platform.invokeMethod('readValue', <String, Object?>{
         'key': key,
       });
       if (result != null) return result as T;

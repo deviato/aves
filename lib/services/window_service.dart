@@ -1,3 +1,4 @@
+import 'package:aves/services/common/channel.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,10 @@ abstract class WindowService {
   Future<void> keepScreenOn(bool on);
 
   Future<void> secureScreen(bool on);
+
+  Future<bool> isInMultiWindowMode();
+
+  Future<bool> isInPictureInPictureMode();
 
   Future<bool> isRotationLocked();
 
@@ -25,10 +30,12 @@ abstract class WindowService {
   Future<bool> supportsHdr();
 
   Future<void> setColorMode({required bool wideColorGamut, required bool hdr});
+
+  Future<bool> startGlobalDrag(String uri, String? label, Size shadowSize, Uint8List shadowBytes);
 }
 
 class PlatformWindowService implements WindowService {
-  static const _platform = MethodChannel('deckers.thibault/aves/window');
+  static const _platform = AvesMethodChannel('deckers.thibault/aves/window');
 
   bool? _isCutoutAware, _supportsHdr, _supportsWideGamut;
 
@@ -46,7 +53,7 @@ class PlatformWindowService implements WindowService {
   @override
   Future<void> keepScreenOn(bool on) async {
     try {
-      await _platform.invokeMethod('keepScreenOn', <String, dynamic>{
+      await _platform.invokeMethod('keepScreenOn', <String, Object?>{
         'on': on,
       });
     } on PlatformException catch (e, stack) {
@@ -57,12 +64,34 @@ class PlatformWindowService implements WindowService {
   @override
   Future<void> secureScreen(bool on) async {
     try {
-      await _platform.invokeMethod('secureScreen', <String, dynamic>{
+      await _platform.invokeMethod('secureScreen', <String, Object?>{
         'on': on,
       });
     } on PlatformException catch (e, stack) {
       await reportService.recordError(e, stack);
     }
+  }
+
+  @override
+  Future<bool> isInMultiWindowMode() async {
+    try {
+      final result = await _platform.invokeMethod('isInMultiWindowMode');
+      if (result != null) return result as bool;
+    } on PlatformException catch (e, stack) {
+      await reportService.recordError(e, stack);
+    }
+    return false;
+  }
+
+  @override
+  Future<bool> isInPictureInPictureMode() async {
+    try {
+      final result = await _platform.invokeMethod('isInPictureInPictureMode');
+      if (result != null) return result as bool;
+    } on PlatformException catch (e, stack) {
+      await reportService.recordError(e, stack);
+    }
+    return false;
   }
 
   @override
@@ -103,7 +132,7 @@ class PlatformWindowService implements WindowService {
   Future<void> requestOrientation([Orientation? orientation]) async {
     Future<void> apply(int orientationCode) async {
       try {
-        await _platform.invokeMethod('requestOrientation', <String, dynamic>{
+        await _platform.invokeMethod('requestOrientation', <String, Object?>{
           'orientation': orientationCode,
         });
       } on PlatformException catch (e, stack) {
@@ -112,7 +141,7 @@ class PlatformWindowService implements WindowService {
     }
 
     switch (orientation) {
-      case Orientation.landscape:
+      case .landscape:
         // first use the `sensor` variant to flip according to the sensor,
         // then switch to a specific landscape orientation
         // so that it no longer listens to the sensor
@@ -124,7 +153,7 @@ class PlatformWindowService implements WindowService {
           default:
             await apply(screenOrientationLandscape);
         }
-      case Orientation.portrait:
+      case .portrait:
         await apply(screenOrientationUserPortrait);
       default:
         await apply(screenOrientationUnspecified);
@@ -189,12 +218,29 @@ class PlatformWindowService implements WindowService {
   Future<void> setColorMode({required bool wideColorGamut, required bool hdr}) async {
     // TODO TLAD [hdr] enable when ready
     // try {
-    //   await _platform.invokeMethod('setColorMode', <String, dynamic>{
+    //   await _platform.invokeMethod('setColorMode', <String, Object?>{
     //     'wideColorGamut': wideColorGamut,
     //     'hdr': hdr,
     //   });
     // } on PlatformException catch (e, stack) {
     //   await reportService.recordError(e, stack);
     // }
+  }
+
+  @override
+  Future<bool> startGlobalDrag(String uri, String? label, Size shadowSize, Uint8List shadowBytes) async {
+    try {
+      final result = await _platform.invokeMethod('startGlobalDrag', <String, Object?>{
+        'uri': uri,
+        'label': label,
+        'shadowWidthDip': shadowSize.width,
+        'shadowHeightDip': shadowSize.height,
+        'shadowBytes': shadowBytes,
+      });
+      if (result != null) return result as bool;
+    } on PlatformException catch (e, stack) {
+      await reportService.recordError(e, stack);
+    }
+    return false;
   }
 }

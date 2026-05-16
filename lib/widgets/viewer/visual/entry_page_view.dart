@@ -3,15 +3,18 @@ import 'dart:async';
 import 'package:aves/app_mode.dart';
 import 'package:aves/model/entry/entry.dart';
 import 'package:aves/model/entry/extensions/props.dart';
+import 'package:aves/model/settings/enums/widget_outline.dart';
 import 'package:aves/model/settings/settings.dart';
 import 'package:aves/model/viewer/view_state.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:aves/services/media/media_session_service.dart';
 import 'package:aves/theme/icons.dart';
 import 'package:aves/view/view.dart';
+import 'package:aves/widgets/aves_app.dart';
 import 'package:aves/widgets/common/action_mixins/feedback.dart';
 import 'package:aves/widgets/common/basic/insets.dart';
 import 'package:aves/widgets/common/extensions/build_context.dart';
+import 'package:aves/widgets/home_widget.dart';
 import 'package:aves/widgets/viewer/controls/controller.dart';
 import 'package:aves/widgets/viewer/controls/notifications.dart';
 import 'package:aves/widgets/viewer/hero.dart';
@@ -98,14 +101,15 @@ class _EntryPageViewState extends State<EntryPageView> with TickerProviderStateM
       _subscriptions.add(mediaSessionService.mediaCommands.listen(_onMediaCommand));
     }
     viewerController.startAutopilotAnimation(
-        vsync: this,
-        onUpdate: ({required scaleLevel}) {
-          final boundaries = _magnifierController.scaleBoundaries;
-          if (boundaries != null) {
-            final scale = boundaries.scaleForLevel(scaleLevel);
-            _magnifierController.update(scale: scale, source: ChangeSource.animation);
-          }
-        });
+      vsync: this,
+      onUpdate: ({required scaleLevel}) {
+        final boundaries = _magnifierController.scaleBoundaries;
+        if (boundaries != null) {
+          final scale = boundaries.scaleForLevel(scaleLevel);
+          _magnifierController.update(scale: scale, source: ChangeSource.animation);
+        }
+      },
+    );
   }
 
   void _unregisterWidget(EntryPageView oldWidget) {
@@ -118,8 +122,8 @@ class _EntryPageViewState extends State<EntryPageView> with TickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    Widget child = AnimatedBuilder(
-      animation: entry.visualChangeNotifier,
+    Widget child = ListenableBuilder(
+      listenable: entry.visualChangeNotifier,
       builder: (context, child) {
         Widget? child;
         if (entry.isSvg) {
@@ -228,7 +232,7 @@ class _EntryPageViewState extends State<EntryPageView> with TickerProviderStateM
                     Shadow(
                       color: Colors.black,
                       blurRadius: 4,
-                    )
+                    ),
                   ],
                 );
                 VideoActionNotification(
@@ -396,42 +400,71 @@ class _EntryPageViewState extends State<EntryPageView> with TickerProviderStateM
     final isWallpaperMode = context.read<ValueNotifier<AppMode>>().value == AppMode.setWallpaper;
     final minScale = isWallpaperMode ? const ScaleLevel(ref: ScaleReference.covered) : const ScaleLevel(ref: ScaleReference.contained);
 
-    return AvesMagnifier(
-      // key includes modified date to refresh when the image is modified by metadata (e.g. rotated)
-      key: Key('${entry.uri}_${entry.pageId}_${entry.dateModifiedMillis}'),
-      controller: controller ?? _magnifierController,
-      contentSize: displaySize ?? entry.displaySize,
-      allowOriginalScaleBeyondRange: !isWallpaperMode,
-      allowDoubleTap: _allowDoubleTap,
-      minScale: minScale,
-      maxScale: maxScale,
-      initialScale: viewerController.initialScale,
-      scaleStateCycle: scaleStateCycle,
-      applyScale: applyScale,
-      onScaleStart: onScaleStart,
-      onScaleUpdate: onScaleUpdate,
-      onScaleEnd: onScaleEnd,
-      onFling: _onFling,
-      onTap: (c, s, a, p) {
-        if (c.mounted) {
-          _onTap(alignment: a);
-        }
+    return ValueListenableBuilder<bool>(
+      valueListenable: AvesApp.canGestureToOtherApps,
+      builder: (context, canGestureToOtherApps, child) {
+        return AvesMagnifier(
+          // key includes modified date to refresh when the image is modified by metadata (e.g. rotated)
+          key: Key('${entry.uri}_${entry.pageId}_${entry.dateModifiedMillis}'),
+          controller: controller ?? _magnifierController,
+          contentSize: displaySize ?? entry.displaySize,
+          allowOriginalScaleBeyondRange: !isWallpaperMode,
+          allowDoubleTap: _allowDoubleTap,
+          minScale: minScale,
+          maxScale: maxScale,
+          initialScale: viewerController.initialScale,
+          scaleStateCycle: scaleStateCycle,
+          applyScale: applyScale,
+          onScaleStart: onScaleStart,
+          onScaleUpdate: onScaleUpdate,
+          onScaleEnd: onScaleEnd,
+          onFling: _onFling,
+          onTap: (context, _, alignment, _) {
+            if (context.mounted) {
+              _onTap(alignment: alignment);
+            }
+          },
+          onLongPress: canGestureToOtherApps ? _startGlobalDrag : null,
+          onDoubleTap: onDoubleTap,
+          child: child!,
+        );
       },
-      onDoubleTap: onDoubleTap,
       child: child,
     );
+  }
+
+  Future<void> _startGlobalDrag() async {
+    const dragShadowSize = Size.square(128);
+    final cornerRadiusPx = await deviceService.getWidgetCornerRadiusPx();
+
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final brightness = Theme.of(context).brightness;
+    final outline = await WidgetOutline.systemBlackAndWhite.color(brightness);
+
+    final dragShadowBytes =
+        await HomeWidgetPainter(
+          entry: entry,
+          devicePixelRatio: devicePixelRatio,
+        ).drawWidget(
+          sizeDip: dragShadowSize,
+          cornerRadiusPx: cornerRadiusPx,
+          outline: outline,
+          shape: WidgetShape.rrect,
+        );
+
+    await windowService.startGlobalDrag(entry.uri, entry.bestTitle, dragShadowSize, dragShadowBytes);
   }
 
   void _onFling(AxisDirection direction) {
     const animate = true;
     switch (direction) {
-      case AxisDirection.left:
+      case .left:
         (context.isRtl ? const ShowNextEntryNotification(animate: animate) : const ShowPreviousEntryNotification(animate: animate)).dispatch(context);
-      case AxisDirection.right:
+      case .right:
         (context.isRtl ? const ShowPreviousEntryNotification(animate: animate) : const ShowNextEntryNotification(animate: animate)).dispatch(context);
-      case AxisDirection.up:
+      case .up:
         PopVisualNotification().dispatch(context);
-      case AxisDirection.down:
+      case .down:
         ShowInfoPageNotification().dispatch(context);
     }
   }
@@ -471,17 +504,17 @@ class _EntryPageViewState extends State<EntryPageView> with TickerProviderStateM
     if (videoController == null) return;
 
     switch (event.command) {
-      case MediaCommand.play:
+      case .play:
         videoController.play();
-      case MediaCommand.pause:
+      case .pause:
         videoController.pause();
-      case MediaCommand.skipToNext:
+      case .skipToNext:
         ShowNextVideoNotification().dispatch(context);
-      case MediaCommand.skipToPrevious:
+      case .skipToPrevious:
         ShowPreviousVideoNotification().dispatch(context);
-      case MediaCommand.stop:
+      case .stop:
         videoController.pause();
-      case MediaCommand.seek:
+      case .seek:
         if (event is MediaSeekCommandEvent) {
           videoController.seekTo(event.position);
         }
@@ -511,7 +544,7 @@ class _EntryPageViewState extends State<EntryPageView> with TickerProviderStateM
 
   static ScaleState _vectorScaleStateCycle(ScaleState actual) {
     switch (actual) {
-      case ScaleState.initial:
+      case .initial:
         return ScaleState.covering;
       default:
         return ScaleState.initial;

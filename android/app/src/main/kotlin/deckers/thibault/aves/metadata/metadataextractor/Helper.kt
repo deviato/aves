@@ -60,13 +60,13 @@ object Helper {
     private val PNG_RAW_PROFILE_PATTERN = Regex("^\\n(.*?)\\n\\s*(\\d+)\\n(.*)", RegexOption.DOT_MATCHES_ALL)
 
     fun readMimeType(input: InputStream): String? {
-        val bufferedInputStream = if (input is BufferedInputStream) input else BufferedInputStream(input)
+        val bufferedInputStream = input as? BufferedInputStream ?: BufferedInputStream(input)
         return FileTypeDetector.detectFileType(bufferedInputStream).mimeType
     }
 
     @Throws(IOException::class, ImageProcessingException::class)
     fun safeRead(input: InputStream, @Suppress("unused_parameter") sizeBytes: Long?): com.drew.metadata.Metadata {
-        val inputStream = if (input is BufferedInputStream) input else BufferedInputStream(input)
+        val inputStream = input as? BufferedInputStream ?: BufferedInputStream(input)
         val fileType = FileTypeDetector.detectFileType(inputStream)
 
         // Providing the stream length is risky, as it may crash if it is incorrect.
@@ -181,13 +181,29 @@ object Helper {
         "yyyy-MM",
         "yyyyMMdd",  // as used in IPTC data
         "yyyy"
-    ).map { SimpleDateFormat(it, Locale.ROOT) }.toTypedArray()
+    ).map {
+        SimpleDateFormat(it, Locale.ROOT).apply {
+            /*
+             * Some older digital cameras, such as the Olympus C750UZ, may not have recorded a proper
+             * exif:DateTimeOriginal value. Instead of leaving this field empty, they used
+             * 0000:00:00 00:00:00 as a placeholder.
+             *
+             * "0000:00:00 00:00:00" will result in "Sun Nov 30 00:00:00 GMT 2",
+             * which is not what a user would expect.
+             *
+             * Any illegal formats should result in an exception and not be parsed.
+             *
+             * It's best to turn lenient mode off.
+             */
+            isLenient = false
+        }
+    }.toTypedArray()
     private val subsecondPattern = Pattern.compile("(\\d\\d:\\d\\d:\\d\\d)(\\.\\d+)")
     private val timeZonePattern = Pattern.compile("(Z|[+-]\\d\\d:\\d\\d|[+-]\\d\\d\\d\\d)$")
     private val calendar: Calendar = GregorianCalendar()
     private const val PARSED_DATE_YEAR_MAX = 10000
 
-    // adapted from `metadata-extractor` v2.18.0 `Directory.getDate()`
+    // adapted from `metadata-extractor` v2.20.0 `Directory.getDate()`
     // to also parse dates written as timestamps
     private fun Directory.getDatePlus(tagType: Int, subSecond: String?, timeZone: TimeZone?): Date? {
         var effectiveSubSecond = subSecond
@@ -198,6 +214,9 @@ object Helper {
         var date: Date? = null
         if (o is String || o is StringValue) {
             var dateString = o.toString()
+
+            // This is a common NULL value known for cameras like Olympus C750UZ.
+            if (dateString == "0000:00:00 00:00:00") return null
 
             // if the date string has subsecond information, it supersedes the subsecond parameter
             val subsecondMatcher = subsecondPattern.matcher(dateString)
@@ -214,7 +233,9 @@ object Helper {
             }
             for (dateFormat in dateFormats) {
                 try {
-                    dateFormat.timeZone = effectiveTimeZone ?: TimeZone.getTimeZone("GMT") // don't interpret zone time
+                    // If the metadata has set a time zone we use that, and otherwise
+                    // we assume that computer and image belong to the same geographical area.
+                    dateFormat.timeZone = effectiveTimeZone ?: TimeZone.getDefault()
                     val parsed = dateFormat.parse(dateString)
                     if (parsed != null) {
                         calendar.time = parsed
@@ -223,7 +244,7 @@ object Helper {
                             break
                         }
                     }
-                } catch (ex: ParseException) {
+                } catch (_: ParseException) {
                     // simply try the next pattern
                 }
             }
@@ -251,7 +272,7 @@ object Helper {
                     calendar[Calendar.MILLISECOND] = millisecond
                     return calendar.time
                 }
-            } catch (e: NumberFormatException) {
+            } catch (_: NumberFormatException) {
                 // ignore
             }
         }
@@ -296,7 +317,7 @@ object Helper {
         if (!modelTiePoints && !modelTransformation) return false
 
         val modelPixelScale = this.containsTag(ExifGeoTiffTags.TAG_MODEL_PIXEL_SCALE)
-        return !((modelTransformation && modelPixelScale) || (modelPixelScale && !modelTiePoints))
+        return !(modelTransformation && modelPixelScale)
     }
 
     // TODO TLAD use `GeoTiffDirectory` from the Java version of `metadata-extractor` when available
@@ -313,7 +334,7 @@ object Helper {
 
         fields[GeoTiffKeys.GEOTIFF_VERSION] = "$directoryVersion.$revision.$minorRevision"
 
-        for (j in 0 until numberOfKeys) {
+        (0..<numberOfKeys).forEach { _ ->
             val keyId = geoKeys[i++]
             val tiffTagLocation = geoKeys[i++]
             val valueCount = geoKeys[i++]

@@ -169,17 +169,17 @@ class Dependencies {
   ];
 
   static List<Dependency> flutterPlugins(AppFlavor flavor) => [
-        ..._flutterPluginsCommon,
-        if (flavor == AppFlavor.izzy) ..._flutterPluginsIzzyOnly,
-        if (flavor == AppFlavor.libre) ..._flutterPluginsLibreOnly,
-        if (flavor == AppFlavor.play) ..._flutterPluginsPlayOnly,
-      ];
+    ..._flutterPluginsCommon,
+    if (flavor == AppFlavor.izzy) ..._flutterPluginsIzzyOnly,
+    if (flavor == AppFlavor.libre) ..._flutterPluginsLibreOnly,
+    if (flavor == AppFlavor.play) ..._flutterPluginsPlayOnly,
+  ];
 
   static const List<Dependency> flutterPackages = [
     Dependency(
-      name: 'Charts (Aves fork)',
+      name: 'Community Charts (Aves fork)',
       license: apache2,
-      sourceUrl: 'https://github.com/deckerst/flutter_google_charts',
+      sourceUrl: 'https://github.com/deckerst/flutter_community_charts',
     ),
     Dependency(
       name: 'Custom rounded rectangle border',
@@ -204,7 +204,7 @@ class Dependencies {
     Dependency(
       name: 'Flutter Highlight',
       license: mit,
-      sourceUrl: 'https://github.com/git-touch/highlight',
+      sourceUrl: 'https://github.com/pd4d10/highlight',
     ),
     Dependency(
       name: 'Flutter Map',
@@ -217,14 +217,19 @@ class Dependencies {
       sourceUrl: 'https://github.com/foresightmobile/flutter_markdown_plus',
     ),
     Dependency(
-      name: 'Flutter Staggered Animations',
+      name: 'Flutter Staggered Animations (Aves fork)',
       license: mit,
-      sourceUrl: 'https://github.com/mobiten/flutter_staggered_animations',
+      sourceUrl: 'https://github.com/deckerst/flutter_staggered_animations',
     ),
     Dependency(
-      name: 'Material Design Icons Flutter',
+      name: 'Material Color Utilities',
+      license: apache2,
+      sourceUrl: 'https://github.com/material-foundation/material-color-utilities/tree/main/dart',
+    ),
+    Dependency(
+      name: 'Flutter Material Design Icons',
       license: mit,
-      sourceUrl: 'https://github.com/ziofat/material_design_icons_flutter',
+      sourceUrl: 'https://github.com/FaFre/flutter_material_design_icons',
     ),
     Dependency(
       name: 'Material Symbols Icons for Flutter',
@@ -232,14 +237,9 @@ class Dependencies {
       sourceUrl: 'https://github.com/timmaffett/material_symbols_icons',
     ),
     Dependency(
-      name: 'Overlay Support',
+      name: 'Overlay Support (Aves fork)',
       license: apache2,
-      sourceUrl: 'https://github.com/boyan01/overlay_support',
-    ),
-    Dependency(
-      name: 'Palette Generator',
-      license: bsd3,
-      sourceUrl: 'https://github.com/flutter/packages/tree/main/packages/palette_generator',
+      sourceUrl: 'https://github.com/deckerst/overlay_support',
     ),
     Dependency(
       name: 'Panorama (Aves fork)',
@@ -252,9 +252,9 @@ class Dependencies {
       sourceUrl: 'https://github.com/qwert2603/pattern_lock',
     ),
     Dependency(
-      name: 'Percent Indicator',
+      name: 'Percent Indicator (Aves fork)',
       license: bsd2,
-      sourceUrl: 'https://github.com/diegoveloper/flutter_percent_indicator',
+      sourceUrl: 'https://github.com/deckerst/flutter_percent_indicator',
     ),
     Dependency(
       name: 'Pin Code Fields',
@@ -293,6 +293,11 @@ class Dependencies {
       name: 'Country Code',
       license: mit,
       sourceUrl: 'https://github.com/denixport/dart.country',
+    ),
+    Dependency(
+      name: 'CSV',
+      license: mit,
+      sourceUrl: 'https://github.com/close2/csv',
     ),
     Dependency(
       name: 'DLNA Dart',

@@ -5,8 +5,8 @@ import com.drew.metadata.Metadata
 import com.drew.metadata.photoshop.PsdHeaderDirectory
 import java.io.IOException
 
-// adapted from `PsdReader` to prevent OOM from reading large XMP
-// as of `metadata-extractor` v2.18.0, there is no way to customize the Photoshop reader
+// adapted from `metadata-extractor` v2.20.0 `PsdReader` to prevent OOM from reading large XMP
+// as of `metadata-extractor` v2.20.0, there is no way to customize the Photoshop reader
 // without copying the whole `extract` function
 class SafePsdReader {
     fun extract(reader: SequentialReader, metadata: Metadata) {
@@ -48,7 +48,7 @@ class SafePsdReader {
 
             val colorMode = reader.uInt16
             directory.setInt(PsdHeaderDirectory.TAG_COLOR_MODE, colorMode)
-        } catch (e: IOException) {
+        } catch (_: IOException) {
             directory.addError("Unable to read PSD header")
             return
         }
@@ -70,7 +70,7 @@ class SafePsdReader {
              *                 file.
              */
             reader.skip(sectionLength)
-        } catch (e: IOException) {
+        } catch (_: IOException) {
             return
         }
 
@@ -82,7 +82,7 @@ class SafePsdReader {
             assert(sectionLength <= Int.MAX_VALUE)
 
             SafePhotoshopReader().extract(reader, sectionLength.toInt(), metadata)
-        } catch (e: IOException) {
+        } catch (_: IOException) {
             // ignore
         }
 

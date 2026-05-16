@@ -140,27 +140,29 @@ class _EntryGoogleMapState<T> extends State<EntryGoogleMap<T>> {
           final bytes = _markerBitmaps[markerKey];
           if (bytes != null) {
             final point = LatLng(geoEntry.latitude!, geoEntry.longitude!);
-            mediaMarkers.add(Marker(
-              markerId: MarkerId(geoEntry.markerId!),
-              consumeTapEvents: true,
-              icon: BytesMapBitmap(
-                bytes,
-                bitmapScaling: MapBitmapScaling.none,
+            mediaMarkers.add(
+              Marker(
+                markerId: MarkerId(geoEntry.markerId!),
+                consumeTapEvents: true,
+                icon: BytesMapBitmap(
+                  bytes,
+                  bitmapScaling: MapBitmapScaling.none,
+                ),
+                position: point,
+                onTap: () => widget.onMarkerTap?.call(geoEntry),
+                // TODO TLAD [map] GoogleMap.onLongPress is not appropriate for mediaMarkers, so the call should be here when this is fixed: https://github.com/flutter/flutter/issues/107148
+                // onLongPress: widget.onMarkerLongPress != null
+                //     ? (v) {
+                //         final pressLocation = _fromServiceLatLng(v);
+                //         final mediaMarkers = _geoEntryByMarkerKey.values.toSet();
+                //         final geoEntry = ImageMarker.markerMatch(pressLocation, bounds.zoom, mediaMarkers);
+                //         if (geoEntry != null) {
+                //           widget.onMarkerLongPress?.call(geoEntry, pressLocation);
+                //         }
+                //       }
+                //     : null,
               ),
-              position: point,
-              onTap: () => widget.onMarkerTap?.call(geoEntry),
-              // TODO TLAD [map] GoogleMap.onLongPress is not appropriate for mediaMarkers, so the call should be here when this is fixed: https://github.com/flutter/flutter/issues/107148
-              // onLongPress: widget.onMarkerLongPress != null
-              //     ? (v) {
-              //         final pressLocation = _fromServiceLatLng(v);
-              //         final mediaMarkers = _geoEntryByMarkerKey.values.toSet();
-              //         final geoEntry = ImageMarker.markerMatch(pressLocation, bounds.zoom, mediaMarkers);
-              //         if (geoEntry != null) {
-              //           widget.onMarkerLongPress?.call(geoEntry, pressLocation);
-              //         }
-              //       }
-              //     : null,
-            ));
+            );
           }
         });
 
@@ -179,7 +181,7 @@ class _EntryGoogleMapState<T> extends State<EntryGoogleMap<T>> {
                   builder: (context, constraints) {
                     _sizeNotifier.value = constraints.biggest;
                     return _GoogleMap(
-                      dotLocationNotifier: widget.dotLocationNotifier ?? ValueNotifier(null),
+                      dotLocationNotifier: widget.dotLocationNotifier,
                       initialCameraPosition: CameraPosition(
                         bearing: -bounds.rotation,
                         target: _toServiceLatLng(bounds.projectedCenter),
@@ -210,7 +212,7 @@ class _EntryGoogleMapState<T> extends State<EntryGoogleMap<T>> {
                             ),
                             position: _toServiceLatLng(dotLocation),
                             zIndexInt: 1,
-                          )
+                          ),
                       },
                       polylines: {
                         if (tracks != null)
@@ -282,10 +284,14 @@ class _EntryGoogleMapState<T> extends State<EntryGoogleMap<T>> {
     final controller = _serviceMapController;
     if (controller == null) return;
 
-    await controller.animateCamera(CameraUpdate.newCameraPosition(CameraPosition(
-      target: _toServiceLatLng(bounds.projectedCenter),
-      zoom: bounds.zoom,
-    )));
+    await controller.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: _toServiceLatLng(bounds.projectedCenter),
+          zoom: bounds.zoom,
+        ),
+      ),
+    );
   }
 
   Future<void> _zoomBy(double amount) async {

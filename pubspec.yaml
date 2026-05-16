@@ -1,20 +1,22 @@
 name: aves
 description: A visual media gallery and metadata explorer app.
 repository: https://github.com/deckerst/aves
+publish_to: none
+
 # version bump checklist:
 # - pubspec version
 # - github changelog: /CHANGELOG.md
 # - play changelog:   /whatsnew/whatsnew-en-US
 # - izzy changelog:   /fastlane/metadata/android/en-US/changelogs/XXX01.txt
 # - libre changelog:  /fastlane/metadata/android/en-US/changelogs/XXX.txt
-version: 1.13.8+159
-publish_to: none
+version: 1.14.4+168
 
 environment:
   # this project bundles Flutter SDK via `flutter_wrapper`
   # cf https://github.com/passsy/flutter_wrapper
-  flutter: 3.27.4
-  sdk: ">=3.6.0 <4.0.0" # incoherent dartfmt from 3.7.0
+  flutter: 3.41.9
+  sdk: ">=3.11.5 <4.0.0"
+
 workspace:
   - plugins/aves_magnifier
   - plugins/aves_map
@@ -27,6 +29,7 @@ workspace:
   - plugins/aves_ui
   - plugins/aves_utils
   - plugins/aves_video
+  - plugins/aves_video_exo
   - plugins/aves_video_mpv
 
 # use `scripts/apply_flavor_{flavor}.sh` to set the right dependencies for the flavor
@@ -53,26 +56,27 @@ dependencies:
     path: plugins/aves_services_google
   aves_video:
     path: plugins/aves_video
+  #  aves_video_exo:
+  #    path: plugins/aves_video_exo
   aves_video_mpv:
     path: plugins/aves_video_mpv
   aves_ui:
     path: plugins/aves_ui
   aves_utils:
     path: plugins/aves_utils
-  charts_flutter:
-    git:
-      # https://github.com/fzyzcjy/charts.git master commit de76a46 (Sep 26, 2022) is incompatible with Flutter v3.10
-      url: https://github.com/deckerst/flutter_google_charts.git
-      ref: aves
-      path: charts_flutter
   collection:
+  community_charts_flutter:
+    git:
+      url: https://github.com/deckerst/flutter_community_charts.git
+      ref: aves
+      path: community_charts_flutter
   connectivity_plus:
   country_code:
+  csv:
   decorated_icon:
   device_info_plus:
   dlna_dart:
-  # `dynamic_color` v1.8.1 is broken, relying on `Color.toARGB32` which is not in Flutter v3.27.4
-  dynamic_color: 1.7.0
+  dynamic_color:
   equatable:
   event_bus:
   expansion_tile_card:
@@ -86,23 +90,29 @@ dependencies:
   flutter_localizations_plus:
     git:
       url: https://github.com/deckerst/flutter_localizations_plus.git
-      ref: 6a8c14bceaefd00e703ad517fd2a32fa2081b5de
   flutter_map:
   flutter_markdown_plus:
   flutter_staggered_animations:
+    git:
+      url: https://github.com/deckerst/flutter_staggered_animations
+      ref: aves
   get_it:
   gpx:
+  highlight:
   http:
   intl:
   latlong2:
   leak_tracker:
   local_auth:
-  material_design_icons_flutter:
+  material_color_utilities:
+  flutter_material_design_icons:
   material_symbols_icons:
   network_info_plus:
   overlay_support:
+    git:
+      url: https://github.com/deckerst/overlay_support.git
+      ref: aves
   package_info_plus:
-  palette_generator: # discontinued on 2025/04/30
   panorama:
     git:
       url: https://github.com/deckerst/aves_panorama.git
@@ -111,6 +121,9 @@ dependencies:
   pattern_lock:
   pdf:
   percent_indicator:
+    git:
+      url: https://github.com/deckerst/flutter_percent_indicator.git
+      ref: aves
   permission_handler:
   pin_code_fields:
   printing:
@@ -127,11 +140,19 @@ dependencies:
       url: https://github.com/deckerst/aves_streams_channel.git
   synchronized:
   url_launcher:
-  vector_map_tiles: ^8.0.0 # vector_map_tiles v9.0.0-beta.6 has a buggy cross-platform definition for `cacheFolder`
+  # `vector_map_tiles` v10.0.0-beta API is unclear to provide sprites
+  vector_map_tiles: ^9.0.0-beta
   vector_math:
   vector_tile_renderer:
   volume_controller:
   xml:
+
+dependency_overrides:
+  media_kit_video:
+    git:
+      url: https://github.com/deckerst/media-kit.git
+      path: media_kit_video
+      ref: video_controller_disposal
 
 dev_dependencies:
   flutter_test:
@@ -162,9 +183,6 @@ flutter:
 ################################################################################
 # Test driver
 
-# capture shaders (profile mode, real device only):
-# % ./flutterw drive --flavor play -t test_driver/driver_shaders.dart --profile --cache-sksl --write-sksl-on-exit shaders.sksl.json
-
 # generate screenshots (profile mode, specific collection):
 # % ./flutterw drive --flavor play -t test_driver/driver_screenshots.dart --profile
 
@@ -181,33 +199,33 @@ flutter:
 #  adapts from package `flutter_highlight` v0.7.0
 #
 #  `OutputBuffer` in `/services/common/output_buffer.dart`
-#  adapts from Flutter v3.16.0 `_OutputBuffer` in `/foundation/consolidate_response.dart`
+#  adapts from Flutter v3.41.9 `_OutputBuffer` in `/foundation/consolidate_response.dart`
 #
 #  `TvLicensePage` in `/widgets/about/tv_license_page.dart`
-#  adapts from Flutter v3.16.0 `_LicenseData` in `/material/about.dart`
+#  adapts from Flutter v3.41.9 `_LicenseData` in `/material/about.dart`
 #  and `_PackageLicensePage` in `/material/about.dart`
 #
 #  `OverlaySnackBar` in `/widgets/common/action_mixins/overlay_snack_bar.dart`
-#  adapts from Flutter v3.23.0 `SnackBar` in `/material/snack_bar.dart`
+#  adapts from Flutter v3.41.9 `SnackBar` in `/material/snack_bar.dart`
 #
 #  `AGestureDetector` in `/widgets/common/basic/gestures/gesture_detector.dart`
-#  adapts from Flutter v3.21.1 `GestureDetector` in `/widgets/gesture_detector.dart`
+#  adapts from Flutter v3.41.9 `GestureDetector` in `/widgets/gesture_detector.dart`
 #
 #  `AInkResponse` in `/widgets/common/basic/gestures/ink_well.dart`
-#  adapts from Flutter v3.21.1 `InkResponse` and related classes in `/material/ink_well.dart`
+#  adapts from Flutter v3.41.9 `InkResponse` and related classes in `/material/ink_well.dart`
 #
 #  `EagerScaleGestureRecognizer` in `/widgets/common/behaviour/eager_scale_gesture_recognizer.dart`
-#  adapts from Flutter v3.16.0 `ScaleGestureRecognizer` in `/gestures/scale.dart`
+#  adapts from Flutter v3.41.9 `ScaleGestureRecognizer` in `/gestures/scale.dart`
 #
 #  `KnownExtentScrollPhysics` in `/widgets/common/behaviour/known_extent_scroll_physics.dart`
-#  adapts from Flutter v3.16.0 `FixedExtentScrollPhysics` in `/widgets/list_wheel_scroll_view.dart`
+#  adapts from Flutter v3.41.9 `FixedExtentScrollPhysics` in `/widgets/list_wheel_scroll_view.dart`
 #
 #  `TransitionImage` in `/widgets/common/fx/transition_image.dart`
-#  adapts from Flutter v3.10.0 `_ImageState` in `/widgets/image.dart`
-#  and `DecorationImagePainter` in `/painting/decoration_image.dart`
+#  adapts from Flutter v3.41.9 `_ImageState` in `/widgets/image.dart`
+#  and `paintImage` in `/painting/decoration_image.dart`
 #
 #  `_RenderSliverKnownExtentBoxAdaptor` in `/widgets/common/grid/sliver.dart`
-#  adapts from Flutter v3.10.0 `RenderSliverFixedExtentBoxAdaptor` in `/rendering/sliver_fixed_extent_list.dart`
+#  adapts from Flutter v3.41.9 `RenderSliverFixedExtentBoxAdaptor` in `/rendering/sliver_fixed_extent_list.dart`
 #
 #  `AvesSearchDelegate`, `SearchPageRoute` in `/widgets/common/search/*.dart`
-#  adapts from Flutter v3.16.0 `SearchDelegate`, `_SearchPageRoute` in `/material/search.dart`
+#  adapts from Flutter v3.41.9 `SearchDelegate`, `_SearchPageRoute` in `/material/search.dart`

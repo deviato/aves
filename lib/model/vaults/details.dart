@@ -40,12 +40,12 @@ class VaultDetails extends Equatable {
     );
   }
 
-  Map<String, dynamic> toMap() => {
-        'name': name,
-        'autoLock': autoLockScreenOff ? 1 : 0,
-        'useBin': useBin ? 1 : 0,
-        'lockType': lockType.name,
-      };
+  Map<String, Object?> toMap() => {
+    'name': name,
+    'autoLock': autoLockScreenOff ? 1 : 0,
+    'useBin': useBin ? 1 : 0,
+    'lockType': lockType.name,
+  };
 
   String get passKey => 'vault_pass_$name';
 

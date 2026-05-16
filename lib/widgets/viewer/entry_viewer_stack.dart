@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:aves/app_mode.dart';
-import 'package:aves/model/device.dart';
 import 'package:aves/model/entry/entry.dart';
 import 'package:aves/model/entry/extensions/multipage.dart';
 import 'package:aves/model/entry/extensions/props.dart';
@@ -39,7 +38,6 @@ import 'package:aves_model/aves_model.dart';
 import 'package:aves_utils/aves_utils.dart';
 import 'package:aves_video/aves_video.dart';
 import 'package:collection/collection.dart';
-import 'package:floating/floating.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -243,8 +241,8 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
                 overlayOpacity: _overlayInitialized
                     ? _overlayOpacity
                     : settings.showOverlayOnOpening
-                        ? kAlwaysCompleteAnimation
-                        : kAlwaysDismissedAnimation,
+                    ? kAlwaysCompleteAnimation
+                    : kAlwaysDismissedAnimation,
                 verticalPager: _verticalPager,
                 horizontalPager: _horizontalPager,
                 onVerticalPageChanged: _onVerticalPageChanged,
@@ -252,12 +250,11 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
                 onImagePageRequested: () => _goToVerticalPage(imagePage),
                 onViewDisposed: (mainEntry, pageEntry) => viewStateConductor.reset(pageEntry ?? mainEntry),
               );
-              return StreamBuilder<PiPStatus>(
-                // as of floating v2.0.0, plugin assumes activity and fails when bound via service
-                // so we do not access status stream directly, but check for support first
-                stream: device.supportPictureInPicture ? Floating().pipStatusStream : Stream.value(PiPStatus.disabled),
-                builder: (context, snapshot) {
-                  final pipEnabled = snapshot.data == PiPStatus.enabled;
+              return ValueListenableBuilder<bool>(
+                // as of floating v6.0.0, `Floating().pipStatusStream` is CPU intensive as it loops to query the platform,
+                // so we monitor the change on the platform and only notify changes
+                valueListenable: AvesApp.isInPictureInPictureMode,
+                builder: (context, pipEnabled, child) {
                   return ValueListenableBuilder<bool>(
                     valueListenable: _viewLocked,
                     builder: (context, locked, child) {
@@ -347,19 +344,19 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
   // * app switch / settings / etc: resumed -> inactive
   void _onAppLifecycleStateChanged() {
     switch (AvesApp.lifecycleStateNotifier.value) {
-      case AppLifecycleState.inactive:
+      case .inactive:
         // inactive: when losing focus
         // also triggered when app is rotated on Android API >=33
         break;
-      case AppLifecycleState.hidden:
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
+      case .hidden:
+      case .paused:
+      case .detached:
         // hidden: transient state between `inactive` and `paused`
         // paused: when using another app
         // detached: when app is without a view
         viewerController.autopilot = false;
         pauseVideoControllers();
-      case AppLifecycleState.resumed:
+      case .resumed:
         break;
     }
   }
@@ -382,9 +379,9 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
   List<Widget> _buildOverlays(Size availableSize) {
     final appMode = context.read<ValueNotifier<AppMode>>().value;
     switch (appMode) {
-      case AppMode.screenSaver:
+      case .screenSaver:
         return [];
-      case AppMode.slideshow:
+      case .slideshow:
         return [
           _buildViewerTopOverlay(availableSize),
           _buildSlideshowBottomOverlay(availableSize),
@@ -521,7 +518,7 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
           ),
           child: Column(
             children: [
-              if (extraBottomOverlay != null) extraBottomOverlay,
+              ?extraBottomOverlay,
               ViewerBottomOverlay(
                 entries: entries,
                 index: _currentEntryIndex,
@@ -544,8 +541,8 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
         // when orientation change, the `PageController` offset is not updated right away
         // and it does not trigger its listeners when it does, so we force a refresh in the next frame
         WidgetsBinding.instance.addPostFrameCallback((_) => _onVerticalPageControllerChanged());
-        return AnimatedBuilder(
-          animation: _verticalScrollNotifier,
+        return ListenableBuilder(
+          listenable: _verticalScrollNotifier,
           builder: (context, child) => Positioned(
             bottom: (_verticalPager.hasClients && _verticalPager.position.hasPixels ? _verticalPager.offset : 0) - availableSize.height,
             child: child!,
@@ -559,7 +556,7 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
     return child;
   }
 
-  bool _handleNotification(dynamic notification) {
+  bool _handleNotification(Notification notification) {
     if (notification is SelectFilterNotification) {
       _goToCollection(notification.filter);
     } else if (notification is CastNotification) {
@@ -579,20 +576,20 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
       final isBin = collection?.filters.contains(TrashFilter.instance) ?? false;
       final entries = notification.entries;
       switch (notification.moveType) {
-        case MoveType.move:
+        case .move:
           _onEntryRemoved(context, entries);
-        case MoveType.toBin:
+        case .toBin:
           if (!isBin) {
             _onEntryRemoved(context, entries);
           }
-        case MoveType.fromBin:
+        case .fromBin:
           if (isBin) {
             _onEntryRemoved(context, entries);
           } else {
             _onEntryRestored(entries);
           }
-        case MoveType.copy:
-        case MoveType.export:
+        case .copy:
+        case .export:
           break;
       }
     } else if (notification is PopupMenuOpenedNotification) {
@@ -600,7 +597,6 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
       // the popup menu button is disposed and menu items are ineffective,
       // so we make sure overlay stays visible
       _overlayVisible.value = true;
-      _videoActionDelegate.stopOverlayHidingTimer();
       dismissFeedback(context);
     } else if (notification is ToggleOverlayNotification) {
       _overlayVisible.value = notification.visible ?? !_overlayVisible.value;
@@ -685,17 +681,19 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
 
     await _onLeave();
     final uri = entryNotifier.value?.uri;
-    unawaited(Navigator.maybeOf(context)?.pushAndRemoveUntil(
-      MaterialPageRoute(
-        settings: const RouteSettings(name: CollectionPage.routeName),
-        builder: (context) => CollectionPage(
-          source: baseCollection.source,
-          filters: {...baseCollection.filters, filter},
-          highlightTest: uri != null ? (entry) => entry.uri == uri : null,
+    unawaited(
+      Navigator.maybeOf(context)?.pushAndRemoveUntil(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: CollectionPage.routeName),
+          builder: (context) => CollectionPage(
+            source: baseCollection.source,
+            filters: {...baseCollection.filters, filter},
+            highlightTest: uri != null ? (entry) => entry.uri == uri : null,
+          ),
         ),
+        (route) => false,
       ),
-      (route) => false,
-    ));
+    );
   }
 
   Future<void> _goToVerticalPage(int page) async {
@@ -893,10 +891,10 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
     final entry = entryNotifier.value;
     if (entry != null && hasCollection) {
       context.read<HighlightInfo>().trackItem(
-            entry,
-            predicate: (v) => v < 1,
-            animate: false,
-          );
+        entry,
+        predicate: (v) => v < 1,
+        animate: false,
+      );
       context.read<ViewerEntryNotifier>().value = entry;
     }
   }
@@ -910,10 +908,10 @@ class _EntryViewerStackState extends State<EntryViewerStack> with EntryViewContr
 
     try {
       switch (settings.maxBrightness) {
-        case MaxBrightness.never:
-        case MaxBrightness.viewerOnly:
+        case .never:
+        case .viewerOnly:
           await AvesApp.screenBrightness?.resetApplicationScreenBrightness();
-        case MaxBrightness.always:
+        case .always:
           await AvesApp.screenBrightness?.setApplicationScreenBrightness(1);
       }
     } on PlatformException catch (e, stack) {

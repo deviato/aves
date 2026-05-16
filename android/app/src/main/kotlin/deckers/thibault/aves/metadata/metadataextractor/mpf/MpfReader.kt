@@ -48,7 +48,7 @@ class MpfReader : JpegSegmentMetadataReader, MetadataReader {
         offset += 2
         // - MP Index Fields (Overall Structure Info.)
         var imageCount = 0
-        for (tag in 0..<tagCount) {
+        (0..<tagCount).forEach { _ ->
             when (val tagId = reader.getUInt16(offset)) {
                 MpfDirectory.TAG_MPF_VERSION -> directory.setString(tagId, reader.getString(offset + 8, 4, Charsets.US_ASCII))
                 MpfDirectory.TAG_NUMBER_OF_IMAGES -> {
@@ -73,6 +73,17 @@ class MpfReader : JpegSegmentMetadataReader, MetadataReader {
                     }
                 }
 
+                MpfDirectory.TAG_IMAGE_UID_LIST -> {
+                    val uidList = ArrayList<String>()
+                    var mpEntryOffset = baseOffset + reader.getInt32(offset + 8)
+                    (0..<imageCount).forEach { _ ->
+                        uidList.add(reader.getString(mpEntryOffset, 33, Charsets.US_ASCII))
+                        mpEntryOffset += 33
+                    }
+                    directory.setString(tagId, uidList.joinToString(", "))
+                }
+
+                MpfDirectory.TAG_TOTAL_FRAMES -> directory.setInt(tagId, reader.getInt32(offset + 8))
                 else -> Log.d(LOG_TAG, "unknown tag=$tagId")
             }
             offset += 12

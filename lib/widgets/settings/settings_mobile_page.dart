@@ -20,7 +20,7 @@ import 'package:aves/widgets/common/search/route.dart';
 import 'package:aves/widgets/settings/app_export/items.dart';
 import 'package:aves/widgets/settings/app_export/selection_dialog.dart';
 import 'package:aves/widgets/settings/settings_page.dart';
-import 'package:aves/widgets/settings/settings_search.dart';
+import 'package:aves/widgets/settings/settings_search_delegate.dart';
 import 'package:aves_model/aves_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -64,11 +64,11 @@ class _SettingsMobilePageState extends State<SettingsMobilePage> with FeedbackMi
               return [
                 PopupMenuItem(
                   value: SettingsAction.export,
-                  child: MenuRow(text: context.l10n.settingsActionExport, icon: Icon(AIcons.fileExport)),
+                  child: MenuRow(text: context.l10n.settingsActionExport, icon: const Icon(AIcons.fileExport)),
                 ),
                 PopupMenuItem(
                   value: SettingsAction.import,
-                  child: MenuRow(text: context.l10n.settingsActionImport, icon: Icon(AIcons.fileImport)),
+                  child: MenuRow(text: context.l10n.settingsActionImport, icon: const Icon(AIcons.fileImport)),
                 ),
               ];
             },
@@ -100,7 +100,7 @@ class _SettingsMobilePageState extends State<SettingsMobilePage> with FeedbackMi
   void _onActionSelected(SettingsAction action) async {
     final source = context.read<CollectionSource>();
     switch (action) {
-      case SettingsAction.export:
+      case .export:
         final toExport = await showDialog<Set<AppExportItem>>(
           context: context,
           builder: (context) => AppExportItemSelectionDialog(
@@ -109,16 +109,19 @@ class _SettingsMobilePageState extends State<SettingsMobilePage> with FeedbackMi
         );
         if (toExport == null || toExport.isEmpty) return;
 
-        final allMap = Map.fromEntries(toExport.map((v) {
-          final jsonMap = v.export(source);
-          return jsonMap != null ? MapEntry(v.name, jsonMap) : null;
-        }).nonNulls);
+        final allMap = Map.fromEntries(
+          toExport.map((v) {
+            final jsonMap = v.export(source);
+            return jsonMap != null ? MapEntry(v.name, jsonMap) : null;
+          }).nonNulls,
+        );
         allMap[exportVersionKey] = exportVersion;
         final allJsonString = jsonEncode(allMap);
 
+        const mimeType = MimeTypes.json;
         final success = await storageService.createFile(
-          'aves-settings-${DateFormat('yyyyMMdd_HHmmss', asciiLocale).format(DateTime.now())}.json',
-          MimeTypes.json,
+          'aves-settings-${DateFormat('yyyyMMdd_HHmmss', kAsciiLocale).format(DateTime.now())}${MimeTypes.extensionFor(mimeType)}',
+          mimeType,
           Uint8List.fromList(utf8.encode(allJsonString)),
         );
         if (success != null) {
@@ -128,29 +131,24 @@ class _SettingsMobilePageState extends State<SettingsMobilePage> with FeedbackMi
             showFeedback(context, FeedbackType.warn, context.l10n.genericFailureFeedback);
           }
         }
-      case SettingsAction.import:
+      case .import:
         // specifying the JSON MIME type to restrict openable files is correct in theory,
         // but older devices (e.g. SM-P580, API 27) that do not recognize JSON files as such would filter them out
         final bytes = await storageService.openFile();
         if (bytes.isNotEmpty) {
           try {
             final allJsonString = utf8.decode(bytes);
-            final allJsonMap = jsonDecode(allJsonString);
+            final allJsonMap = jsonDecode(allJsonString) as Map<String, Object?>;
 
-            final version = allJsonMap[exportVersionKey];
-            final importable = <AppExportItem, dynamic>{};
+            final version = allJsonMap[exportVersionKey] as int?;
+            final importable = <AppExportItem, Object>{};
             if (version == null) {
               // backward compatibility before versioning
               importable[AppExportItem.settings] = allJsonMap;
             } else {
-              if (allJsonMap is! Map) {
-                debugPrint('failed to import app json=$allJsonMap');
-                showFeedback(context, FeedbackType.warn, context.l10n.genericFailureFeedback);
-                return;
-              }
               allJsonMap.keys.where((v) => v != exportVersionKey).forEach((k) {
                 try {
-                  importable[AppExportItem.values.byName(k)] = allJsonMap[k];
+                  importable[AppExportItem.values.byName(k)] = allJsonMap[k] as Object;
                 } catch (error, stack) {
                   debugPrint('failed to identify import app item=$k with error=$error\n$stack');
                 }
@@ -167,7 +165,10 @@ class _SettingsMobilePageState extends State<SettingsMobilePage> with FeedbackMi
             if (toImport == null || toImport.isEmpty) return;
 
             await Future.forEach<AppExportItem>(toImport, (item) async {
-              return item.import(importable[item], source);
+              final jsonObject = importable[item];
+              if (jsonObject != null) {
+                await item.import(jsonObject, source);
+              }
             });
             showFeedback(context, FeedbackType.info, context.l10n.genericSuccessFeedback);
           } catch (error, stack) {

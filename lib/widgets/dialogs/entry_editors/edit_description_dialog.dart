@@ -44,23 +44,25 @@ class _EditEntryTitleDescriptionDialogState extends State<EditEntryTitleDescript
   @override
   Widget build(BuildContext context) {
     return MediaQueryDataProvider(
-      child: Builder(builder: (context) {
-        return AvesDialog(
-          scrollableContent: [
-            const SizedBox(height: 8),
-            ..._buildFieldEditor(DescriptionField.title),
-            ..._buildFieldEditor(DescriptionField.description),
-            const SizedBox(height: 8),
-          ],
-          actions: [
-            const CancelButton(),
-            TextButton(
-              onPressed: fields.isEmpty ? null : () => _submit(context),
-              child: Text(context.l10n.applyButtonLabel),
-            ),
-          ],
-        );
-      }),
+      child: Builder(
+        builder: (context) {
+          return AvesDialog(
+            scrollableContent: [
+              const SizedBox(height: 8),
+              ..._buildFieldEditor(DescriptionField.title),
+              ..._buildFieldEditor(DescriptionField.description),
+              const SizedBox(height: 8),
+            ],
+            actions: [
+              const CancelButton(),
+              TextButton(
+                onPressed: fields.isEmpty ? null : () => _submit(context),
+                child: Text(context.l10n.applyButtonLabel),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -91,9 +93,9 @@ class _EditEntryTitleDescriptionDialogState extends State<EditEntryTitleDescript
 
   TextEditingController _fieldController(DescriptionField field) {
     switch (field) {
-      case DescriptionField.title:
+      case .title:
         return _titleTextController;
-      case DescriptionField.description:
+      case .description:
         return _descriptionTextController;
     }
   }
@@ -107,10 +109,12 @@ class _EditEntryTitleDescriptionDialogState extends State<EditEntryTitleDescript
   }
 
   void _submit(BuildContext context) {
-    final modifier = Map.fromEntries(fields.map((field) {
-      final text = _fieldController(field).text;
-      return MapEntry(field, text.isEmpty ? null : text);
-    }));
+    final modifier = Map.fromEntries(
+      fields.map((field) {
+        final text = _fieldController(field).text;
+        return MapEntry(field, text.isEmpty ? null : text);
+      }),
+    );
     return Navigator.maybeOf(context)?.pop<Map<DescriptionField, String?>>(modifier);
   }
 }

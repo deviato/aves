@@ -350,8 +350,8 @@ class _FilterGridContentState<T extends CollectionFilter> extends State<_FilterG
                       extent: thumbnailExtent,
                       child: FilterListDetailsTheme(
                         extent: thumbnailExtent,
-                        child: AnimatedBuilder(
-                          animation: vaults,
+                        child: ListenableBuilder(
+                          listenable: vaults.lockStateChangeNotifier,
                           builder: (context, child) {
                             return SectionedFilterListLayoutProvider<T>(
                               sections: visibleSections,
@@ -687,9 +687,9 @@ class _FilterScrollView<T extends CollectionFilter> extends StatelessWidget {
                 final navBarHeight = showBottomNavigationBar ? AppBottomNavBar.height : 0;
                 return DraggableScrollbar(
                   backgroundColor: Colors.white,
-                  scrollThumbSize: Size(avesScrollThumbWidth, avesScrollThumbHeight),
-                  scrollThumbBuilder: avesScrollThumbBuilder(
-                    height: avesScrollThumbHeight,
+                  scrollThumbSize: AvesScrollThumb.thumbSize,
+                  scrollThumbBuilder: AvesScrollThumb.builder(
+                    height: AvesScrollThumb.thumbHeight,
                     backgroundColor: Colors.white,
                   ),
                   controller: scrollController,

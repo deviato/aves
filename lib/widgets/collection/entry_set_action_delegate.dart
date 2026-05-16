@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:aves/app_mode.dart';
 import 'package:aves/model/device.dart';
 import 'package:aves/model/dynamic_albums.dart';
 import 'package:aves/model/entry/entry.dart';
 import 'package:aves/model/entry/extensions/favourites.dart';
+import 'package:aves/model/entry/extensions/location.dart';
 import 'package:aves/model/entry/extensions/metadata_edition.dart';
 import 'package:aves/model/entry/extensions/multipage.dart';
 import 'package:aves/model/entry/extensions/props.dart';
+import 'package:aves/model/entry/sort.dart';
 import 'package:aves/model/favourites.dart';
 import 'package:aves/model/filters/container/dynamic_album.dart';
 import 'package:aves/model/filters/container/set_and.dart';
@@ -23,6 +27,8 @@ import 'package:aves/model/source/analysis_controller.dart';
 import 'package:aves/model/source/collection_lens.dart';
 import 'package:aves/model/source/collection_source.dart';
 import 'package:aves/model/vaults/vaults.dart';
+import 'package:aves/ref/locales.dart';
+import 'package:aves/ref/mime_types.dart';
 import 'package:aves/services/app_service.dart';
 import 'package:aves/services/common/image_op_events.dart';
 import 'package:aves/services/common/services.dart';
@@ -31,12 +37,14 @@ import 'package:aves/theme/durations.dart';
 import 'package:aves/theme/themes.dart';
 import 'package:aves/utils/collection_utils.dart';
 import 'package:aves/utils/mime_utils.dart';
+import 'package:aves/widgets/about/app_ref.dart';
 import 'package:aves/widgets/collection/collection_page.dart';
 import 'package:aves/widgets/common/action_mixins/entry_editor.dart';
 import 'package:aves/widgets/common/action_mixins/entry_storage.dart';
 import 'package:aves/widgets/common/action_mixins/feedback.dart';
 import 'package:aves/widgets/common/action_mixins/permission_aware.dart';
 import 'package:aves/widgets/common/action_mixins/size_aware.dart';
+import 'package:aves/widgets/common/action_mixins/vault_aware.dart';
 import 'package:aves/widgets/common/extensions/build_context.dart';
 import 'package:aves/widgets/common/search/route.dart';
 import 'package:aves/widgets/dialogs/add_shortcut_dialog.dart';
@@ -48,17 +56,20 @@ import 'package:aves/widgets/dialogs/filter_editors/create_dynamic_album_dialog.
 import 'package:aves/widgets/dialogs/pick_dialogs/location_pick_page.dart';
 import 'package:aves/widgets/filter_grids/albums_page.dart';
 import 'package:aves/widgets/map/map_page.dart';
-import 'package:aves/widgets/search/search_delegate.dart';
+import 'package:aves/widgets/search/collection_search_delegate.dart';
 import 'package:aves/widgets/stats/stats_page.dart';
 import 'package:aves/widgets/viewer/slideshow_page.dart';
+import 'package:aves_map/aves_map.dart';
 import 'package:aves_model/aves_model.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:gpx/gpx.dart';
+import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
-class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAwareMixin, EntryEditorMixin, EntryStorageMixin {
+class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAwareMixin, EntryEditorMixin, EntryStorageMixin, VaultAwareMixin {
   bool isVisible(
     EntrySetAction action, {
     required AppMode appMode,
@@ -72,54 +83,55 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
     final useTvLayout = settings.useTvLayout;
     switch (action) {
       // general
-      case EntrySetAction.configureView:
+      case .configureView:
         return true;
-      case EntrySetAction.select:
+      case .select:
         return appMode.canSelectMedia && !isSelecting;
-      case EntrySetAction.selectAll:
+      case .selectAll:
         return (isSelecting && selectedItemCount < itemCount) || (!isSelecting && settings.collectionBrowsingQuickActions.contains(action));
-      case EntrySetAction.selectNone:
+      case .selectNone:
         return isSelecting && selectedItemCount == itemCount;
       // browsing
-      case EntrySetAction.searchCollection:
+      case .searchCollection:
         return appMode.canNavigate && !isSelecting && !useTvLayout;
-      case EntrySetAction.toggleTitleSearch:
+      case .toggleTitleSearch:
         return !isSelecting && !useTvLayout;
-      case EntrySetAction.addShortcut:
+      case .addShortcut:
         return isMain && !isSelecting && !isTrash && device.canPinShortcut;
-      case EntrySetAction.addDynamicAlbum:
-      case EntrySetAction.setHome:
+      case .addDynamicAlbum:
+      case .setHome:
         return isMain && !isSelecting && !isTrash && !useTvLayout;
-      case EntrySetAction.emptyBin:
+      case .emptyBin:
         return isMain && isTrash && canWrite;
       // browsing or selecting
-      case EntrySetAction.map:
-      case EntrySetAction.slideshow:
-      case EntrySetAction.stats:
+      case .map:
+      case .slideshow:
+      case .stats:
         return isMain;
-      case EntrySetAction.rescan:
+      case .rescan:
         return isMain && isSelecting && !useTvLayout;
       // selecting
-      case EntrySetAction.share:
-      case EntrySetAction.toggleFavourite:
+      case .share:
+      case .toggleFavourite:
         return isMain && isSelecting && !isTrash;
-      case EntrySetAction.delete:
+      case .delete:
         return isMain && isSelecting && canWrite;
-      case EntrySetAction.copy:
-      case EntrySetAction.move:
-      case EntrySetAction.rename:
-      case EntrySetAction.convert:
-      case EntrySetAction.rotateCCW:
-      case EntrySetAction.rotateCW:
-      case EntrySetAction.flip:
-      case EntrySetAction.editDate:
-      case EntrySetAction.editLocation:
-      case EntrySetAction.editTitleDescription:
-      case EntrySetAction.editRating:
-      case EntrySetAction.editTags:
-      case EntrySetAction.removeMetadata:
+      case .copy:
+      case .move:
+      case .rename:
+      case .convert:
+      case .exportGpx:
+      case .rotateCCW:
+      case .rotateCW:
+      case .flip:
+      case .editDate:
+      case .editLocation:
+      case .editTitleDescription:
+      case .editRating:
+      case .editTags:
+      case .removeMetadata:
         return isMain && isSelecting && !isTrash && canWrite;
-      case EntrySetAction.restore:
+      case .restore:
         return isMain && isSelecting && isTrash && canWrite;
     }
   }
@@ -135,46 +147,47 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
     final hasSelection = selectedItemCount > 0;
 
     switch (action) {
-      case EntrySetAction.configureView:
+      case .configureView:
         return true;
-      case EntrySetAction.select:
+      case .select:
         return hasItems;
-      case EntrySetAction.selectAll:
+      case .selectAll:
         return selectedItemCount < itemCount || (!isSelecting && settings.collectionBrowsingQuickActions.contains(action));
-      case EntrySetAction.selectNone:
+      case .selectNone:
         return hasSelection;
-      case EntrySetAction.searchCollection:
-      case EntrySetAction.toggleTitleSearch:
-      case EntrySetAction.addShortcut:
-      case EntrySetAction.setHome:
+      case .searchCollection:
+      case .toggleTitleSearch:
+      case .addShortcut:
+      case .setHome:
         return true;
-      case EntrySetAction.addDynamicAlbum:
+      case .addDynamicAlbum:
         return collection.filters.isNotEmpty;
-      case EntrySetAction.emptyBin:
+      case .emptyBin:
         return !isSelecting && hasItems;
-      case EntrySetAction.map:
-      case EntrySetAction.slideshow:
-      case EntrySetAction.stats:
-      case EntrySetAction.rescan:
+      case .map:
+      case .slideshow:
+      case .stats:
+      case .rescan:
         return (!isSelecting && hasItems) || (isSelecting && hasSelection);
       // selecting
-      case EntrySetAction.share:
-      case EntrySetAction.delete:
-      case EntrySetAction.restore:
-      case EntrySetAction.copy:
-      case EntrySetAction.move:
-      case EntrySetAction.rename:
-      case EntrySetAction.convert:
-      case EntrySetAction.toggleFavourite:
-      case EntrySetAction.rotateCCW:
-      case EntrySetAction.rotateCW:
-      case EntrySetAction.flip:
-      case EntrySetAction.editDate:
-      case EntrySetAction.editLocation:
-      case EntrySetAction.editTitleDescription:
-      case EntrySetAction.editRating:
-      case EntrySetAction.editTags:
-      case EntrySetAction.removeMetadata:
+      case .share:
+      case .delete:
+      case .restore:
+      case .copy:
+      case .move:
+      case .rename:
+      case .convert:
+      case .exportGpx:
+      case .toggleFavourite:
+      case .rotateCCW:
+      case .rotateCW:
+      case .flip:
+      case .editDate:
+      case .editLocation:
+      case .editTitleDescription:
+      case .editRating:
+      case .editTags:
+      case .removeMetadata:
         return hasSelection;
     }
   }
@@ -183,68 +196,70 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
     reportService.log('$runtimeType handles $action');
     switch (action) {
       // general
-      case EntrySetAction.configureView:
-      case EntrySetAction.select:
-      case EntrySetAction.selectAll:
-      case EntrySetAction.selectNone:
+      case .configureView:
+      case .select:
+      case .selectAll:
+      case .selectNone:
         break;
       // browsing
-      case EntrySetAction.searchCollection:
+      case .searchCollection:
         _goToSearch(context);
-      case EntrySetAction.toggleTitleSearch:
+      case .toggleTitleSearch:
         final routeName = context.currentRouteName!;
         settings.setShowTitleQuery(routeName, !settings.getShowTitleQuery(routeName));
         context.read<Query>().toggle();
-      case EntrySetAction.addDynamicAlbum:
+      case .addDynamicAlbum:
         _addDynamicAlbum(context);
-      case EntrySetAction.addShortcut:
+      case .addShortcut:
         _addShortcut(context);
-      case EntrySetAction.setHome:
+      case .setHome:
         _setHome(context);
       // browsing or selecting
-      case EntrySetAction.map:
+      case .map:
         _goToMap(context);
-      case EntrySetAction.slideshow:
+      case .slideshow:
         _goToSlideshow(context);
-      case EntrySetAction.stats:
+      case .stats:
         _goToStats(context);
-      case EntrySetAction.rescan:
+      case .rescan:
         _rescan(context);
       // selecting
-      case EntrySetAction.share:
+      case .share:
         _share(context);
-      case EntrySetAction.delete:
-      case EntrySetAction.emptyBin:
+      case .delete:
+      case .emptyBin:
         _delete(context);
-      case EntrySetAction.restore:
+      case .restore:
         _move(context, moveType: MoveType.fromBin);
-      case EntrySetAction.copy:
+      case .copy:
         _move(context, moveType: MoveType.copy);
-      case EntrySetAction.move:
+      case .move:
         _move(context, moveType: MoveType.move);
-      case EntrySetAction.rename:
+      case .rename:
         _rename(context);
-      case EntrySetAction.convert:
+      case .convert:
         _convert(context);
-      case EntrySetAction.toggleFavourite:
+      case .exportGpx:
+        _exportGpx(context);
+      case .toggleFavourite:
         _toggleFavourite(context);
-      case EntrySetAction.rotateCCW:
+      case .rotateCCW:
         _rotate(context, clockwise: false);
-      case EntrySetAction.rotateCW:
+      case .rotateCW:
         _rotate(context, clockwise: true);
-      case EntrySetAction.flip:
+      case .flip:
         _flip(context);
-      case EntrySetAction.editDate:
+      case .editDate:
         editDate(context);
-      case EntrySetAction.editLocation:
+      case .editLocation:
         _editLocation(context);
-      case EntrySetAction.editTitleDescription:
+      case .editTitleDescription:
         _editTitleDescription(context);
-      case EntrySetAction.editRating:
+      case .editRating:
         _editRating(context);
-      case EntrySetAction.editTags:
+      case .editTags:
         _editTags(context);
-      case EntrySetAction.removeMetadata:
+      case .removeMetadata:
         _removeMetadata(context);
     }
   }
@@ -266,13 +281,9 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
         await showNoMatchingAppDialog(context);
       }
     } on TooManyItemsException catch (_) {
-      await showDialog(
+      await showWarningDialog(
         context: context,
-        builder: (context) => AvesDialog(
-          content: Text(context.l10n.tooManyItemsErrorDialogMessage),
-          actions: const [OkButton()],
-        ),
-        routeSettings: const RouteSettings(name: AvesDialog.warningRouteName),
+        message: context.l10n.tooManyItemsErrorDialogMessage,
       );
     }
   }
@@ -361,6 +372,23 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
     return true;
   }
 
+  Future<void> quickMove(BuildContext context, String destinationAlbum, {required bool copy}) async {
+    if (!await unlockAlbum(context, destinationAlbum)) return;
+
+    final entries = _getTargetItems(context);
+    final completed = await doQuickMove(
+      context,
+      moveType: copy ? MoveType.copy : MoveType.move,
+      entriesByDestination: {
+        destinationAlbum: entries,
+      },
+    );
+
+    if (completed) {
+      _browse(context);
+    }
+  }
+
   Future<void> _move(BuildContext context, {required MoveType moveType}) async {
     final entries = _getTargetItems(context);
     final completed = await doMove(context, moveType: moveType, entries: entries);
@@ -406,14 +434,78 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
     if (options == null) return;
 
     switch (options.action) {
-      case EntryConvertAction.convert:
+      case .convert:
         final completed = await doExport(context, entries, options);
         if (completed) {
           _browse(context);
         }
-      case EntryConvertAction.convertMotionPhotoToStillImage:
-        final todoItems = entries.where((entry) => entry.isMotionPhoto).toSet();
-        await _edit(context, todoItems, (entry) => entry.removeTrailerVideo());
+      case .convertMotionPhotoToStillImage:
+        final todoEntries = entries.where((entry) => entry.isMotionPhoto).toSet();
+        await _edit(context, todoEntries, (entry) => entry.removeTrailerVideo());
+    }
+  }
+
+  Future<void> _exportGpx(BuildContext context) async {
+    final entries = _getTargetItems(context).where((entry) => entry.hasGps).sorted(AvesEntrySort.compareByDate).toList();
+    if (entries.isEmpty) return;
+
+    final waypoints = entries
+        .map((entry) {
+          final latLng = entry.latLng;
+          return latLng != null
+              ? Wpt(
+                  lat: latLng.latitude,
+                  lon: latLng.longitude,
+                  time: entry.bestDate,
+                  desc: entry.bestTitle,
+                )
+              : null;
+        })
+        .nonNulls
+        .toList();
+    final bounds = ZoomedBounds.fromPoints(points: waypoints.map((v) => LatLng(v.lat!, v.lon!)).toSet());
+
+    final dateTime = DateTime.now();
+    final gpx = Gpx()
+      ..creator = device.userAgent
+      ..metadata = Metadata(
+        author: Person(
+          name: device.userAgent,
+          link: Link(href: AppReference.avesGithub),
+        ),
+        time: dateTime,
+        bounds: Bounds(
+          minlat: bounds.sw.latitude,
+          minlon: bounds.sw.longitude,
+          maxlat: bounds.ne.latitude,
+          maxlon: bounds.ne.longitude,
+        ),
+      )
+      ..wpts = waypoints
+      ..rtes = [
+        Rte(rtepts: waypoints),
+      ]
+      ..trks = [
+        Trk(
+          trksegs: [
+            Trkseg(trkpts: waypoints),
+          ],
+        ),
+      ];
+
+    final body = GpxWriter().asString(gpx);
+    const mimeType = MimeTypes.gpx;
+    final success = await storageService.createFile(
+      'aves-gpx-${DateFormat('yyyyMMdd_HHmmss', kAsciiLocale).format(dateTime)}${MimeTypes.extensionFor(mimeType)}',
+      mimeType,
+      Uint8List.fromList(utf8.encode(body)),
+    );
+    if (success != null) {
+      if (success) {
+        showFeedback(context, FeedbackType.info, context.l10n.genericSuccessFeedback);
+      } else {
+        showFeedback(context, FeedbackType.warn, context.l10n.genericFailureFeedback);
+      }
     }
   }
 
@@ -430,18 +522,21 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
 
   Future<void> _edit(
     BuildContext context,
-    Set<AvesEntry> todoItems,
+    Set<AvesEntry> todoEntries,
     Future<Set<EntryDataType>> Function(AvesEntry entry) op, {
+    bool shouldCheckUndatedItems = true,
     bool showResult = true,
   }) async {
-    final selectionDirs = todoItems.map((e) => e.directory).nonNulls.toSet();
-    final todoCount = todoItems.length;
+    final selectionDirs = todoEntries.map((e) => e.directory).nonNulls.toSet();
+    final todoCount = todoEntries.length;
 
-    if (!await checkStoragePermissionForAlbums(context, selectionDirs, entries: todoItems)) return;
+    if (!await checkStoragePermissionForAlbums(context, selectionDirs, entries: todoEntries)) return;
 
-    Set<String> obsoleteTags = todoItems.expand((entry) => entry.tags).toSet();
-    Set<String> obsoleteCountryCodes = todoItems.where((entry) => entry.hasAddress).map((entry) => entry.addressDetails?.countryCode).nonNulls.toSet();
-    Set<String> obsoleteStateCodes = todoItems.where((entry) => entry.hasAddress).map((entry) => entry.addressDetails?.stateCode).nonNulls.toSet();
+    if (shouldCheckUndatedItems && !await checkUndatedItems(context, todoEntries)) return;
+
+    Set<String> obsoleteTags = todoEntries.expand((entry) => entry.tags).toSet();
+    Set<String> obsoleteCountryCodes = todoEntries.where((entry) => entry.hasAddress).map((entry) => entry.addressDetails?.countryCode).nonNulls.toSet();
+    Set<String> obsoleteStateCodes = todoEntries.where((entry) => entry.hasAddress).map((entry) => entry.addressDetails?.stateCode).nonNulls.toSet();
 
     final dataTypes = <EntryDataType>{};
     final source = context.read<CollectionSource>();
@@ -449,7 +544,7 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
     var cancelled = false;
     await showOpReport<ImageOpEvent>(
       context: context,
-      opStream: Stream.fromIterable(todoItems).asyncMap((entry) async {
+      opStream: Stream.fromIterable(todoEntries).asyncMap((entry) async {
         if (cancelled) {
           return ImageOpEvent(success: true, skipped: true, uri: entry.uri);
         } else {
@@ -465,20 +560,22 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
         final editedOps = successOps.where((op) => !op.skipped).toSet();
         source.resumeMonitoring();
 
-        unawaited(source.refreshUris(editedOps.map((op) => op.uri).toSet()).then((_) {
-          // invalidate filters derived from values before edition
-          // this invalidation must happen after the source is refreshed,
-          // otherwise filter chips may eagerly rebuild in between with the old state
-          if (obsoleteCountryCodes.isNotEmpty) {
-            source.invalidateCountryFilterSummary(countryCodes: obsoleteCountryCodes);
-          }
-          if (obsoleteStateCodes.isNotEmpty) {
-            source.invalidateStateFilterSummary(stateCodes: obsoleteStateCodes);
-          }
-          if (obsoleteTags.isNotEmpty) {
-            source.invalidateTagFilterSummary(tags: obsoleteTags);
-          }
-        }));
+        unawaited(
+          source.refreshUris(editedOps.map((op) => op.uri).toSet()).then((_) {
+            // invalidate filters derived from values before edition
+            // this invalidation must happen after the source is refreshed,
+            // otherwise filter chips may eagerly rebuild in between with the old state
+            if (obsoleteCountryCodes.isNotEmpty) {
+              source.invalidateCountryFilterSummary(countryCodes: obsoleteCountryCodes);
+            }
+            if (obsoleteStateCodes.isNotEmpty) {
+              source.invalidateStateFilterSummary(stateCodes: obsoleteStateCodes);
+            }
+            if (obsoleteTags.isNotEmpty) {
+              source.invalidateTagFilterSummary(tags: obsoleteTags);
+            }
+          }),
+        );
 
         if (dataTypes.contains(EntryDataType.aspectRatio)) {
           source.onAspectRatioChanged();
@@ -503,8 +600,7 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
   Future<Set<AvesEntry>?> _getEditableTargetItems(
     BuildContext context, {
     required bool Function(AvesEntry entry) canEdit,
-  }) =>
-      _getEditableItems(context, _getTargetItems(context), canEdit: canEdit);
+  }) => _getEditableItems(context, _getTargetItems(context), canEdit: canEdit);
 
   Future<Set<AvesEntry>?> _getEditableItems(
     BuildContext context,
@@ -519,22 +615,22 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
 
     final unsupportedTypes = unsupported.map((entry) => entry.mimeType).toSet().map(MimeUtils.displayType).toList()..sort();
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
+    final message = l10n.unsupportedTypeDialogMessage(unsupportedTypes.length, unsupportedTypes.join(', '));
+    if (supported.isEmpty) {
+      await showWarningDialog(
+        context: context,
+        message: message,
+      );
+      return null;
+    }
+
+    if (!await showConfirmationDialog(
       context: context,
-      builder: (context) => AvesDialog(
-        content: Text(l10n.unsupportedTypeDialogMessage(unsupportedTypes.length, unsupportedTypes.join(', '))),
-        actions: [
-          const CancelButton(),
-          if (supported.isNotEmpty)
-            TextButton(
-              onPressed: () => Navigator.maybeOf(context)?.pop(true),
-              child: Text(l10n.continueButtonLabel),
-            ),
-        ],
-      ),
-      routeSettings: const RouteSettings(name: AvesDialog.warningRouteName),
-    );
-    if (confirmed == null || !confirmed) return null;
+      message: message,
+      ok: l10n.continueButtonLabel,
+    )) {
+      return null;
+    }
 
     // wait for the dialog to hide
     await Future.delayed(ADurations.dialogTransitionLoose * timeDilation);
@@ -555,7 +651,12 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
     await _edit(context, entries, (entry) => entry.flip());
   }
 
-  Future<void> editDate(BuildContext context, {Set<AvesEntry>? entries, DateModifier? modifier, bool showResult = true}) async {
+  Future<void> editDate(
+    BuildContext context, {
+    Set<AvesEntry>? entries,
+    DateModifier? modifier,
+    bool showResult = true,
+  }) async {
     entries ??= await _getEditableTargetItems(context, canEdit: (entry) => entry.canEditDate);
     if (entries == null || entries.isEmpty) return;
 
@@ -565,7 +666,7 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
     }
     if (modifier == null) return;
 
-    await _edit(context, entries, (entry) => entry.editDate(modifier!), showResult: showResult);
+    await _edit(context, entries, (entry) => entry.editDate(modifier!), shouldCheckUndatedItems: false, showResult: showResult);
   }
 
   Future<void> _editLocation(BuildContext context) async {
@@ -574,14 +675,15 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
 
     final collection = context.read<CollectionLens>();
     final locationByEntry = await selectLocation(context, entries, collection);
-    if (locationByEntry == null) return;
+    if (locationByEntry == null || locationByEntry.isEmpty) return;
 
-    await _edit(context, locationByEntry.keys.toSet(), (entry) => entry.editLocation(locationByEntry[entry]));
+    final todoEntries = locationByEntry.keys.toSet();
+    await _edit(context, todoEntries, (entry) => entry.editLocation(locationByEntry[entry]));
   }
 
   Future<LatLng?> editLocationByMap(BuildContext context, Set<AvesEntry> entries, LatLng clusterLocation, CollectionLens mapCollection) async {
-    final editableEntries = await _getEditableItems(context, entries, canEdit: (entry) => entry.canEditLocation);
-    if (editableEntries == null || editableEntries.isEmpty) return null;
+    final todoEntries = await _getEditableItems(context, entries, canEdit: (entry) => entry.canEditLocation);
+    if (todoEntries == null || todoEntries.isEmpty) return null;
 
     final location = await Navigator.maybeOf(context)?.push(
       MaterialPageRoute(
@@ -595,32 +697,24 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
     );
     if (location == null) return null;
 
-    await _edit(context, editableEntries, (entry) => entry.editLocation(location));
+    await _edit(context, todoEntries, (entry) => entry.editLocation(location));
     return location;
   }
 
   Future<void> removeLocation(BuildContext context, Set<AvesEntry> entries) async {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
+    if (!await showConfirmationDialog(
       context: context,
-      builder: (context) => AvesDialog(
-        content: Text(l10n.genericDangerWarningDialogMessage),
-        actions: [
-          const CancelButton(),
-          TextButton(
-            onPressed: () => Navigator.maybeOf(context)?.pop(true),
-            child: Text(l10n.applyButtonLabel),
-          ),
-        ],
-      ),
-      routeSettings: const RouteSettings(name: AvesDialog.warningRouteName),
-    );
-    if (confirmed == null || !confirmed) return;
+      message: l10n.genericDangerWarningDialogMessage,
+      ok: l10n.applyButtonLabel,
+    )) {
+      return;
+    }
 
-    final editableEntries = await _getEditableItems(context, entries, canEdit: (entry) => entry.canEditLocation);
-    if (editableEntries == null || editableEntries.isEmpty) return;
+    final todoEntries = await _getEditableItems(context, entries, canEdit: (entry) => entry.canEditLocation);
+    if (todoEntries == null || todoEntries.isEmpty) return;
 
-    await _edit(context, editableEntries, (entry) => entry.editLocation(ExtraAvesEntryMetadataEdition.removalLocation));
+    await _edit(context, todoEntries, (entry) => entry.editLocation(ExtraAvesEntryMetadataEdition.removalLocation));
   }
 
   Future<void> _editTitleDescription(BuildContext context) async {
@@ -633,14 +727,31 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
     await _edit(context, entries, (entry) => entry.editTitleDescription(modifier));
   }
 
-  Future<void> _editRating(BuildContext context) async {
+  Future<void> quickRate(BuildContext context, int rating) => _editRating(context, rating: rating);
+
+  Future<void> _editRating(BuildContext context, {int? rating}) async {
     final entries = await _getEditableTargetItems(context, canEdit: (entry) => entry.canEditRating);
     if (entries == null || entries.isEmpty) return;
 
-    final rating = await selectRating(context, entries);
+    rating ??= await selectRating(context, entries);
     if (rating == null) return;
 
     await _edit(context, entries, (entry) => entry.editRating(rating));
+  }
+
+  Future<void> quickTag(BuildContext context, CollectionFilter filter) async {
+    final entries = await _getEditableTargetItems(context, canEdit: (entry) => entry.canEditTags);
+    if (entries == null || entries.isEmpty) return;
+
+    final newTagsByEntry = <AvesEntry, Set<String>>{};
+    await Future.forEach(entries, (entry) async {
+      newTagsByEntry[entry] = {
+        ...entry.tags,
+        ...await getTagsFromFilters({filter}, entry),
+      };
+    });
+
+    await _doEditTags(context, newTagsByEntry);
   }
 
   Future<void> _editTags(BuildContext context) async {
@@ -650,22 +761,29 @@ class EntrySetActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAware
     final newTagsByEntry = await selectTags(context, entries);
     if (newTagsByEntry == null) return;
 
+    await _doEditTags(context, newTagsByEntry);
+  }
+
+  Future<void> _doEditTags(BuildContext context, Map<AvesEntry, Set<String>> newTagsByEntry) async {
+    final entries = newTagsByEntry.keys.toSet();
+
     // only process modified items
     entries.removeWhere((entry) {
       final newTags = newTagsByEntry[entry] ?? entry.tags;
       final currentTags = entry.tags;
       return newTags.length == currentTags.length && newTags.every(currentTags.contains);
     });
-
     if (entries.isEmpty) return;
 
     await _edit(context, entries, (entry) => entry.editTags(newTagsByEntry[entry]!));
   }
 
   Future<void> removeTags(BuildContext context, {required Set<AvesEntry> entries, required Set<String> tags}) async {
-    final newTagsByEntry = Map.fromEntries(entries.map((v) {
-      return MapEntry(v, v.tags.whereNot(tags.contains).toSet());
-    }));
+    final newTagsByEntry = Map.fromEntries(
+      entries.map((v) {
+        return MapEntry(v, v.tags.whereNot(tags.contains).toSet());
+      }),
+    );
 
     await _edit(context, entries, (entry) => entry.editTags(newTagsByEntry[entry]!));
   }

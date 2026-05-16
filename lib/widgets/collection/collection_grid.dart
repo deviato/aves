@@ -182,8 +182,8 @@ class _CollectionGridContentState extends State<_CollectionGridContent> {
                               tileExtent: thumbnailExtent,
                               tileBuilder: (entry, tileSize) {
                                 final extent = tileSize.shortestSide;
-                                return AnimatedBuilder(
-                                  animation: favourites,
+                                return ListenableBuilder(
+                                  listenable: favourites,
                                   builder: (context, child) {
                                     Widget tile = InteractiveTile(
                                       key: ValueKey(entry.id),
@@ -256,14 +256,14 @@ class _CollectionGridContentState extends State<_CollectionGridContent> {
     if (viewerEntryNotifier.value == entry) return;
     WidgetsBinding.instance.addPostFrameCallback((_) => viewerEntryNotifier.value = entry);
 
+    final viewerCollection = collection.copyWith(
+      listenToSource: false,
+    );
     final selection = context.read<Selection<AvesEntry>>();
     await Navigator.maybeOf(context)?.push(
       TransparentMaterialPageRoute(
         settings: const RouteSettings(name: EntryViewerPage.routeName),
         pageBuilder: (context, a, sa) {
-          final viewerCollection = collection.copyWith(
-            listenToSource: false,
-          );
           Widget child = EntryViewerPage(
             collection: viewerCollection,
             initialEntry: entry,
@@ -536,9 +536,9 @@ class _CollectionScrollViewState extends State<_CollectionScrollView> with Widge
                     final offsetIncrementSnapThreshold = context.select<TileExtentController, double>((v) => (v.extentNotifier.value + v.spacing) / 4);
                     return DraggableScrollbar(
                       backgroundColor: Colors.white,
-                      scrollThumbSize: Size(avesScrollThumbWidth, avesScrollThumbHeight),
-                      scrollThumbBuilder: avesScrollThumbBuilder(
-                        height: avesScrollThumbHeight,
+                      scrollThumbSize: AvesScrollThumb.thumbSize,
+                      scrollThumbBuilder: AvesScrollThumb.builder(
+                        height: AvesScrollThumb.thumbHeight,
                         backgroundColor: Colors.white,
                       ),
                       controller: scrollController,
@@ -558,7 +558,7 @@ class _CollectionScrollViewState extends State<_CollectionScrollView> with Widge
                         }
                         return scrollOffset;
                       },
-                      crumbsBuilder: () => _getCrumbs(sectionLayouts),
+                      scrollCrumbsBuilder: () => _getScrollCrumbs(sectionLayouts),
                       padding: EdgeInsets.only(
                         // padding to keep scroll thumb between app bar above and nav bar below
                         top: appBarHeight,
@@ -673,7 +673,7 @@ class _CollectionScrollViewState extends State<_CollectionScrollView> with Widge
 
   void _stopScrollMonitoringTimer() => _scrollMonitoringTimer?.cancel();
 
-  Map<double, String> _getCrumbs(List<SectionLayout> sectionLayouts) {
+  Map<double, String> _getScrollCrumbs(List<SectionLayout> sectionLayouts) {
     final crumbs = <double, String>{};
     if (sectionLayouts.length <= 1) return crumbs;
 
@@ -691,12 +691,12 @@ class _CollectionScrollViewState extends State<_CollectionScrollView> with Widge
 
     final collection = widget.collection;
     switch (collection.sortFactor) {
-      case EntrySortFactor.date:
+      case .date:
         switch (collection.sectionFactor) {
-          case EntrySectionFactor.album:
+          case .album:
             addAlbums(collection, sectionLayouts, crumbs);
-          case EntrySectionFactor.month:
-          case EntrySectionFactor.day:
+          case .month:
+          case .day:
             final firstKey = sectionLayouts.first.sectionKey;
             final lastKey = sectionLayouts.last.sectionKey;
             if (firstKey is EntryDateSectionKey && lastKey is EntryDateSectionKey) {
@@ -718,15 +718,15 @@ class _CollectionScrollViewState extends State<_CollectionScrollView> with Widge
                 });
               }
             }
-          case EntrySectionFactor.none:
+          case .none:
             break;
         }
-      case EntrySortFactor.name:
-      case EntrySortFactor.path:
+      case .name:
+      case .path:
         addAlbums(collection, sectionLayouts, crumbs);
-      case EntrySortFactor.rating:
-      case EntrySortFactor.size:
-      case EntrySortFactor.duration:
+      case .rating:
+      case .size:
+      case .duration:
         break;
     }
     return crumbs;

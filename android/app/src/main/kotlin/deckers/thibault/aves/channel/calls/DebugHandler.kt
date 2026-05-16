@@ -15,6 +15,7 @@ import android.util.Log
 import androidx.core.net.toUri
 import com.drew.metadata.file.FileTypeDirectory
 import deckers.thibault.aves.channel.calls.Coresult.Companion.safe
+import deckers.thibault.aves.glide.TiffFetcher
 import deckers.thibault.aves.metadata.ExifInterfaceHelper
 import deckers.thibault.aves.metadata.MediaMetadataRetrieverHelper
 import deckers.thibault.aves.metadata.Metadata
@@ -41,8 +42,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.beyka.tiffbitmapfactory.TiffBitmapFactory
-import org.mp4parser.IsoFile
-import java.io.FileInputStream
 import java.io.IOException
 import androidx.exifinterface.media.ExifInterfaceFork as ExifInterface
 
@@ -76,6 +75,7 @@ class DebugHandler(private val context: Context) : MethodCallHandler {
     private fun getContextDirs(@Suppress("unused_parameter") call: MethodCall, result: MethodChannel.Result) {
         val dirs = hashMapOf(
             "cacheDir" to context.cacheDir,
+            "dataDir" to context.dataDir,
             "filesDir" to context.filesDir,
             "obbDir" to context.obbDir,
             "externalCacheDir" to context.externalCacheDir,
@@ -83,9 +83,6 @@ class DebugHandler(private val context: Context) : MethodCallHandler {
             "codeCacheDir" to context.codeCacheDir,
             "noBackupFilesDir" to context.noBackupFilesDir,
         ).apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                put("dataDir", context.dataDir)
-            }
         }.mapValues { it.value?.path }.toMutableMap()
         dirs["externalCacheDirs"] = context.externalCacheDirs.joinToString { it.path }
         dirs["externalFilesDirs"] = context.getExternalFilesDirs(null).joinToString { it?.path ?: "null" }
@@ -103,23 +100,61 @@ class DebugHandler(private val context: Context) : MethodCallHandler {
     }
 
     private fun getCodecs(@Suppress("unused_parameter") call: MethodCall, result: MethodChannel.Result) {
+        fun displayNum(n: Int): String {
+            var s = "$n"
+            if (s.endsWith("000")) s = "${n / 1000}K"
+            if (s.endsWith("000K")) s = "${n / 1000000}M"
+            return s
+        }
+
         fun getFields(info: MediaCodecInfo): FieldMap {
             val fields: FieldMap = hashMapOf(
                 "name" to info.name,
                 "isEncoder" to info.isEncoder,
-                "supportedTypes" to info.supportedTypes.joinToString(", "),
             )
+            for (mimeType in info.supportedTypes) {
+                var desc: String? = null
+                val cap = info.getCapabilitiesForType(mimeType)
+                cap.audioCapabilities?.let { cap ->
+                    desc = listOf(
+                        Pair("BitrateRange", cap.bitrateRange),
+                    ).filter { it.second != null }.joinToString(", ") { "${it.first}=${it.second}" }
+                }
+                cap.videoCapabilities?.let { cap ->
+                    desc = arrayListOf<Pair<String, Any?>>(
+                        Pair("BitrateMax", displayNum(cap.bitrateRange.upper)),
+                    ).apply {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            add(Pair("PerformancePoints", cap.supportedPerformancePoints?.let { points ->
+                                "[${points.joinToString(", ") { it.toString().removePrefix("PerformancePoint") }}]"
+                            }))
+                        }
+                    }.filter { it.second != null }.joinToString(", ") { "${it.first}=${it.second}" }
+                }
+                fields[mimeType] = desc
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 if (info.canonicalName != info.name) fields["canonicalName"] = info.canonicalName
-                if (info.isAlias) fields["isAlias"] to info.isAlias
-                if (info.isHardwareAccelerated) fields["isHardwareAccelerated"] to info.isHardwareAccelerated
-                if (info.isSoftwareOnly) fields["isSoftwareOnly"] to info.isSoftwareOnly
-                if (info.isVendor) fields["isVendor"] to info.isVendor
+
+                val flags = ArrayList<String>()
+                if (info.isAlias) flags.add("alias")
+                if (info.isHardwareAccelerated) flags.add("hardware accelerated")
+                if (info.isSoftwareOnly) flags.add("software only")
+                if (info.isVendor) flags.add("vendor")
+                if (flags.isNotEmpty()) fields["flags"] = flags.joinToString(", ")
             }
             return fields
         }
 
-        val codecs = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.map(::getFields).toList()
+        val regularCodecs = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+        val codecs = ArrayList<FieldMap>()
+        codecs.addAll(regularCodecs.mapIndexed { index, info ->
+            getFields(info).apply { put("rank", index) }
+        })
+        val otherCodecs = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.filterNot(regularCodecs::contains).toTypedArray()
+        codecs.addAll(otherCodecs.mapIndexed { index, info ->
+            getFields(info).apply { put("rank", "non-regular $index") }
+        })
         result.success(codecs)
     }
 
@@ -149,7 +184,7 @@ class DebugHandler(private val context: Context) : MethodCallHandler {
                     options.outConfig?.let { metadataMap["Config"] = it.toString() }
                 }
             }
-        } catch (e: IOException) {
+        } catch (_: IOException) {
             // ignore
         }
         result.success(metadataMap)
@@ -190,7 +225,7 @@ class DebugHandler(private val context: Context) : MethodCallHandler {
             val metadataMap = HashMap<String, Any?>()
             val columnCount = cursor.columnCount
             val columnNames = cursor.columnNames
-            for (i in 0 until columnCount) {
+            for (i in 0..<columnCount) {
                 val key = columnNames[i]
                 try {
                     metadataMap[key] = when (cursor.getType(i)) {
@@ -253,7 +288,7 @@ class DebugHandler(private val context: Context) : MethodCallHandler {
                 for ((code, name) in MediaMetadataRetrieverHelper.allKeys) {
                     retriever.extractMetadata(code)?.let { metadataMap[name] = it }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // ignore
             } finally {
                 // cannot rely on `MediaMetadataRetriever` being `AutoCloseable` on older APIs
@@ -316,18 +351,10 @@ class DebugHandler(private val context: Context) : MethodCallHandler {
         }
 
         val sb = StringBuilder()
-        if (mimeType == MimeTypes.MP4 || MimeTypes.isHeic(mimeType)) {
+        if (mimeType == MimeTypes.MP4 || MimeTypes.isIsoBMFFImage(mimeType)) {
             try {
-                // we can skip uninteresting boxes with a seekable data source
-                val pfd = StorageUtils.openInputFileDescriptor(context, uri) ?: throw Exception("failed to open file descriptor for uri=$uri")
-                pfd.use {
-                    FileInputStream(it.fileDescriptor).use { stream ->
-                        stream.channel.use { channel ->
-                            IsoFile(channel, Mp4ParserHelper.metadataBoxParser()).use { isoFile ->
-                                isoFile.dumpBoxes(sb)
-                            }
-                        }
-                    }
+                Mp4ParserHelper.consumeIso(context, uri, Mp4ParserHelper.metadataBoxParser()) { isoFile ->
+                    isoFile.dumpBoxes(sb)
                 }
             } catch (e: Exception) {
                 result.error("getMp4ParserDump-exception", e.message, e.stackTraceToString())
@@ -373,19 +400,19 @@ class DebugHandler(private val context: Context) : MethodCallHandler {
                 result.error("getTiffStructure-fd", "failed to get file descriptor", null)
                 return
             }
-            var options = TiffBitmapFactory.Options().apply {
+            var options = TiffFetcher.buildOptions().apply {
                 inJustDecodeBounds = true
             }
             TiffBitmapFactory.decodeFileDescriptor(fd, options)
             metadataMap["0"] = tiffOptionsToMap(options)
             val dirCount = options.outDirectoryCount
-            for (page in 1 until dirCount) {
+            for (page in 1..<dirCount) {
                 fd = context.contentResolver.openFileDescriptor(uri, "r")?.detachFd()
                 if (fd == null) {
                     result.error("getTiffStructure-fd", "failed to get file descriptor", null)
                     return
                 }
-                options = TiffBitmapFactory.Options().apply {
+                options = TiffFetcher.buildOptions().apply {
                     inJustDecodeBounds = true
                     inDirectoryNumber = page
                 }

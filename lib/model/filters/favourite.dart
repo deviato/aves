@@ -21,16 +21,16 @@ class FavouriteFilter extends CollectionFilter {
 
   const FavouriteFilter._private({super.reversed = false});
 
-  factory FavouriteFilter.fromMap(Map<String, dynamic> json) {
-    final reversed = json['reversed'] ?? false;
+  factory FavouriteFilter.fromMap(Map<String, Object?> json) {
+    final reversed = json['reversed'] as bool? ?? false;
     return reversed ? instanceReversed : instance;
   }
 
   @override
-  Map<String, dynamic> toMap() => {
-        'type': type,
-        'reversed': reversed,
-      };
+  Map<String, Object?> toMap() => {
+    'type': type,
+    'reversed': reversed,
+  };
 
   @override
   EntryPredicate get positiveTest => _test;

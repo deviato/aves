@@ -30,6 +30,7 @@ class VideoProgressBar extends StatefulWidget {
 class _VideoProgressBarState extends State<VideoProgressBar> {
   final GlobalKey _progressBarKey = GlobalKey(debugLabel: 'video-progress-bar');
   bool _playingOnDragStart = false;
+  final ValueNotifier<ABRepeat?> _internalAbRepeatNotifier = ValueNotifier(null);
 
   static const double radius = 123;
 
@@ -39,7 +40,13 @@ class _VideoProgressBarState extends State<VideoProgressBar> {
 
   bool get isPlaying => controller?.isPlaying ?? false;
 
-  ValueNotifier<ABRepeat?> get abRepeatNotifier => controller?.abRepeatNotifier ?? ValueNotifier(null);
+  ValueNotifier<ABRepeat?> get abRepeatNotifier => controller?.abRepeatNotifier ?? _internalAbRepeatNotifier;
+
+  @override
+  void dispose() {
+    _internalAbRepeatNotifier.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -97,12 +104,13 @@ class _VideoProgressBarState extends State<VideoProgressBar> {
                               Row(
                                 children: [
                                   StreamBuilder<int>(
-                                      stream: positionStream,
-                                      builder: (context, snapshot) {
-                                        // do not use stream snapshot because it is obsolete when switching between videos
-                                        final position = controller?.currentPosition.floor() ?? 0;
-                                        return _buildText(formatFriendlyDuration(Duration(milliseconds: position)));
-                                      }),
+                                    stream: positionStream,
+                                    builder: (context, snapshot) {
+                                      // do not use stream snapshot because it is obsolete when switching between videos
+                                      final position = controller?.currentPosition.floor() ?? 0;
+                                      return _buildText(formatFriendlyDuration(Duration(milliseconds: position)));
+                                    },
+                                  ),
                                   const Spacer(),
                                   _buildText(formatFriendlyDuration(Duration(milliseconds: controller?.duration ?? 0))),
                                 ],
@@ -110,18 +118,19 @@ class _VideoProgressBarState extends State<VideoProgressBar> {
                               ClipRRect(
                                 borderRadius: const BorderRadius.all(Radius.circular(4)),
                                 child: Directionality(
-                                  textDirection: videoPlaybackDirection,
+                                  textDirection: kVideoPlaybackDirection,
                                   child: StreamBuilder<int>(
-                                      stream: positionStream,
-                                      builder: (context, snapshot) {
-                                        // do not use stream snapshot because it is obsolete when switching between videos
-                                        var progress = controller?.progress ?? 0.0;
-                                        if (!progress.isFinite) progress = 0.0;
-                                        return LinearProgressIndicator(
-                                          value: progress,
-                                          backgroundColor: theme.colorScheme.onSurface.withValues(alpha: .2),
-                                        );
-                                      }),
+                                    stream: positionStream,
+                                    builder: (context, snapshot) {
+                                      // do not use stream snapshot because it is obsolete when switching between videos
+                                      var progress = controller?.progress ?? 0.0;
+                                      if (!progress.isFinite) progress = 0.0;
+                                      return LinearProgressIndicator(
+                                        value: progress,
+                                        backgroundColor: theme.colorScheme.onSurface.withValues(alpha: .2),
+                                      );
+                                    },
+                                  ),
                                 ),
                               ),
                               Row(
@@ -174,35 +183,35 @@ class _VideoProgressBarState extends State<VideoProgressBar> {
   }
 
   Widget _buildSpeedIndicator() => StreamBuilder<double>(
-        stream: controller?.speedStream ?? Stream.value(1.0),
-        builder: (context, snapshot) {
-          final speed = controller?.speed ?? 1.0;
-          return speed != 1
-              ? Padding(
-                  padding: const EdgeInsetsDirectional.only(end: 8),
-                  child: _buildText('x$speed'),
-                )
-              : const SizedBox();
-        },
-      );
+    stream: controller?.speedStream ?? Stream.value(1.0),
+    builder: (context, snapshot) {
+      final speed = controller?.speed ?? 1.0;
+      return speed != 1
+          ? Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: _buildText('x$speed'),
+            )
+          : const SizedBox();
+    },
+  );
 
   Widget _buildMuteIndicator() => StreamBuilder<double>(
-        stream: controller?.volumeStream ?? Stream.value(1.0),
-        builder: (context, snapshot) {
-          final textScaler = MediaQuery.textScalerOf(context);
-          final isMuted = controller?.isMuted ?? false;
-          return isMuted
-              ? Padding(
-                  padding: const EdgeInsetsDirectional.only(end: 8),
-                  child: DecoratedIcon(
-                    AIcons.mute,
-                    size: textScaler.scale(16),
-                    shadows: Theme.of(context).isDark ? AStyles.embossShadows : null,
-                  ),
-                )
-              : const SizedBox();
-        },
-      );
+    stream: controller?.volumeStream ?? Stream.value(1.0),
+    builder: (context, snapshot) {
+      final textScaler = MediaQuery.textScalerOf(context);
+      final isMuted = controller?.isMuted ?? false;
+      return isMuted
+          ? Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: DecoratedIcon(
+                AIcons.mute,
+                size: textScaler.scale(16),
+                shadows: Theme.of(context).isDark ? AStyles.embossShadows : null,
+              ),
+            )
+          : const SizedBox();
+    },
+  );
 
   RenderBox? _getProgressBarRenderBox() {
     return _progressBarKey.currentContext?.findRenderObject() as RenderBox?;

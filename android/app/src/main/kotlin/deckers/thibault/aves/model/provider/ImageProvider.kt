@@ -309,8 +309,8 @@ abstract class ImageProvider {
                     sourceDocFile.copyTo(output)
                 }
             } else {
-                val targetWidthPx: Int
-                val targetHeightPx: Int
+                var targetWidthPx: Int
+                var targetHeightPx: Int
                 when (lengthUnit) {
                     LENGTH_UNIT_PERCENT -> {
                         targetWidthPx = sourceEntry.displayWidth * width / 100
@@ -323,6 +323,12 @@ abstract class ImageProvider {
                     }
                 }
 
+                val rotationDegrees = sourceEntry.rotationDegrees
+                val needRotationAfterGlide = MimeTypes.needRotationAfterGlide(sourceMimeType, pageId)
+                if (rotationDegrees != 0 && needRotationAfterGlide) {
+                    targetWidthPx = targetHeightPx.also { targetHeightPx = targetWidthPx }
+                }
+
                 target = Glide.with(activity.applicationContext)
                     .asBitmap()
                     .apply(AvesAppGlideModule.uncachedFullImageOptions)
@@ -330,8 +336,8 @@ abstract class ImageProvider {
                     .submit(targetWidthPx, targetHeightPx)
 
                 var bitmap = withContext(Dispatchers.IO) { target.get() }
-                if (MimeTypes.needRotationAfterGlide(sourceMimeType, pageId)) {
-                    bitmap = BitmapUtils.applyExifOrientation(activity, bitmap, sourceEntry.rotationDegrees, sourceEntry.isFlipped)
+                if (needRotationAfterGlide) {
+                    bitmap = BitmapUtils.applyExifOrientation(activity, bitmap, rotationDegrees, sourceEntry.isFlipped)
                 }
                 bitmap ?: throw Exception("failed to get image for mimeType=$sourceMimeType uri=$sourceUri page=$pageId")
 
@@ -1169,8 +1175,18 @@ abstract class ImageProvider {
     ) {
         val newFields: FieldMap = hashMapOf()
         if (modifier.containsKey(TYPE_EXIF)) {
-            val fields = modifier[TYPE_EXIF] as Map<*, *>?
-            if (fields != null && fields.isNotEmpty()) {
+            val fieldsToEdit = HashMap<String, Any?>()
+            (modifier[TYPE_EXIF] as Map<*, *>?)?.forEach {
+                val tag = it.key as String?
+                if (tag != null) {
+                    fieldsToEdit[tag] = it.value
+                }
+            }
+            if (fieldsToEdit.isNotEmpty()) {
+                val modifiedDateTag = ExifInterface.TAG_DATETIME
+                if (!fieldsToEdit.containsKey(modifiedDateTag)) {
+                    fieldsToEdit[modifiedDateTag] = ExifInterfaceHelper.DATETIME_FORMAT.format(Date())
+                }
                 if (!editExif(
                         context = context,
                         path = path,
@@ -1180,7 +1196,7 @@ abstract class ImageProvider {
                         autoCorrectTrailerOffset = autoCorrectTrailerOffset,
                     ) { exif ->
                         var setLocation = false
-                        fields.forEach { kv ->
+                        fieldsToEdit.forEach { kv ->
                             val tag = kv.key as String?
                             if (tag != null) {
                                 val value = kv.value
@@ -1208,10 +1224,10 @@ abstract class ImageProvider {
                             }
                         }
                         if (setLocation) {
-                            val latAbs = (fields[ExifInterface.TAG_GPS_LATITUDE] as Number?)?.toDouble()
-                            val latRef = fields[ExifInterface.TAG_GPS_LATITUDE_REF] as String?
-                            val lngAbs = (fields[ExifInterface.TAG_GPS_LONGITUDE] as Number?)?.toDouble()
-                            val lngRef = fields[ExifInterface.TAG_GPS_LONGITUDE_REF] as String?
+                            val latAbs = (fieldsToEdit[ExifInterface.TAG_GPS_LATITUDE] as Number?)?.toDouble()
+                            val latRef = fieldsToEdit[ExifInterface.TAG_GPS_LATITUDE_REF] as String?
+                            val lngAbs = (fieldsToEdit[ExifInterface.TAG_GPS_LONGITUDE] as Number?)?.toDouble()
+                            val lngRef = fieldsToEdit[ExifInterface.TAG_GPS_LONGITUDE_REF] as String?
                             if (latAbs != null && latRef != null && lngAbs != null && lngRef != null) {
                                 val latitude = if (latRef == ExifInterface.LATITUDE_SOUTH) -latAbs else latAbs
                                 val longitude = if (lngRef == ExifInterface.LONGITUDE_WEST) -lngAbs else lngAbs
@@ -1242,7 +1258,7 @@ abstract class ImageProvider {
 
         if (modifier.containsKey(TYPE_MP4)) {
             val fieldsToEdit = modifier[TYPE_MP4] as Map<*, *>?
-            if (fieldsToEdit != null && fieldsToEdit.isNotEmpty()) {
+            if (!fieldsToEdit.isNullOrEmpty()) {
                 if (!editMp4Metadata(
                         context = context,
                         path = path,

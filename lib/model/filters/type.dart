@@ -60,19 +60,19 @@ class TypeFilter extends CollectionFilter {
     }
   }
 
-  factory TypeFilter.fromMap(Map<String, dynamic> json) {
+  factory TypeFilter.fromMap(Map<String, Object?> json) {
     return TypeFilter._private(
-      json['itemType'],
-      reversed: json['reversed'] ?? false,
+      json['itemType'] as String,
+      reversed: json['reversed'] as bool? ?? false,
     );
   }
 
   @override
-  Map<String, dynamic> toMap() => {
-        'type': type,
-        'itemType': itemType,
-        'reversed': reversed,
-      };
+  Map<String, Object?> toMap() => {
+    'type': type,
+    'itemType': itemType,
+    'reversed': reversed,
+  };
 
   @override
   EntryPredicate get positiveTest => _test;

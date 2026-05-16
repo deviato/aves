@@ -62,6 +62,7 @@ class _LocationSectionState extends State<LocationSection> {
   @override
   void dispose() {
     _unregisterWidget(widget);
+    _mapController.dispose();
     super.dispose();
   }
 
@@ -106,8 +107,8 @@ class _LocationSectionState extends State<LocationSection> {
               openMapPage: collection != null ? _openMapPage : null,
             ),
           ),
-          AnimatedBuilder(
-            animation: entry.addressChangeNotifier,
+          ListenableBuilder(
+            listenable: entry.addressChangeNotifier,
             builder: (context, child) {
               final filters = <LocationFilter>[];
               if (entry.hasAddress) {
@@ -131,10 +132,12 @@ class _LocationSectionState extends State<LocationSection> {
                         spacing: 8,
                         runSpacing: 8,
                         children: filters
-                            .map((filter) => AvesFilterChip(
-                                  filter: filter,
-                                  onTap: widget.onFilterSelection,
-                                ))
+                            .map(
+                              (filter) => AvesFilterChip(
+                                filter: filter,
+                                onTap: widget.onFilterSelection,
+                              ),
+                            )
                             .toList(),
                       ),
                     ),

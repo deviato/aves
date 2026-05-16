@@ -19,7 +19,7 @@ import 'package:aves/widgets/filter_grids/tags_page.dart';
 import 'package:aves/widgets/home/home_page.dart';
 import 'package:aves/widgets/navigation/drawer/tile.dart';
 import 'package:aves/widgets/navigation/nav_display.dart';
-import 'package:aves/widgets/search/search_delegate.dart';
+import 'package:aves/widgets/search/collection_search_delegate.dart';
 import 'package:aves/widgets/settings/settings_page.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
@@ -107,9 +107,9 @@ class AvesNavItem extends Equatable {
     switch (route) {
       case CollectionPage.routeName:
         return (context) => CollectionPage(
-              source: context.read<CollectionSource>(),
-              filters: filters,
-            );
+          source: context.read<CollectionSource>(),
+          filters: filters,
+        );
       case AlbumListPage.routeName:
         return (_) => const AlbumListPage(initialGroup: null);
       case CountryListPage.routeName:
@@ -133,19 +133,19 @@ class AvesNavItem extends Equatable {
 
   // serialization
 
-  static AvesNavItem _fromMap(Map<String, dynamic> json) {
+  static AvesNavItem _fromMap(Map<String, Object?> json) {
     return AvesNavItem(
-      route: json['route'],
+      route: json['route'] as String,
       filters: (json['filters'] as List?)?.cast<String>().map(CollectionFilter.fromJson).nonNulls.toSet(),
-      path: json['path'],
+      path: json['path'] as String?,
     );
   }
 
-  Map<String, dynamic> _toMap() => {
-        'route': route,
-        if (filters != null) 'filters': filters?.map((v) => v.toJson()).toList(),
-        if (path != null) 'path': path,
-      };
+  Map<String, Object?> _toMap() => {
+    'route': route,
+    if (filters != null) 'filters': filters!.map((v) => v.toJson()).toList(),
+    'path': ?path,
+  };
 
   String toJson() => jsonEncode(_toMap());
 
@@ -154,7 +154,7 @@ class AvesNavItem extends Equatable {
 
     try {
       final jsonMap = jsonDecode(jsonString);
-      if (jsonMap is Map<String, dynamic>) {
+      if (jsonMap is Map<String, Object?>) {
         return _fromMap(jsonMap);
       }
       debugPrint('failed to parse navigation item from json=$jsonString');

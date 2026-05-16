@@ -23,6 +23,9 @@ import 'package:aves/widgets/collection/collection_page.dart';
 import 'package:aves/widgets/collection/entry_set_action_delegate.dart';
 import 'package:aves/widgets/collection/filter_bar.dart';
 import 'package:aves/widgets/collection/query_bar.dart';
+import 'package:aves/widgets/common/action_controls/quick_choosers/move_button.dart';
+import 'package:aves/widgets/common/action_controls/quick_choosers/rate_button.dart';
+import 'package:aves/widgets/common/action_controls/quick_choosers/tag_button.dart';
 import 'package:aves/widgets/common/action_controls/togglers/favourite.dart';
 import 'package:aves/widgets/common/action_controls/togglers/title_search.dart';
 import 'package:aves/widgets/common/app_bar/app_bar_subtitle.dart';
@@ -36,7 +39,7 @@ import 'package:aves/widgets/common/identity/buttons/captioned_button.dart';
 import 'package:aves/widgets/common/search/route.dart';
 import 'package:aves/widgets/common/tile_extent_controller.dart';
 import 'package:aves/widgets/dialogs/tile_view_dialog.dart';
-import 'package:aves/widgets/search/search_delegate.dart';
+import 'package:aves/widgets/search/collection_search_delegate.dart';
 import 'package:aves/widgets/viewer/controls/notifications.dart';
 import 'package:aves_model/aves_model.dart';
 import 'package:flutter/material.dart';
@@ -64,6 +67,7 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
   final EntrySetActionDelegate _actionDelegate = EntrySetActionDelegate();
   late AnimationController _browseToSelectAnimation;
   final ValueNotifier<bool> _isSelectingNotifier = ValueNotifier(false);
+  final ValueNotifier<String?> _actionPopupExpandedNotifier = ValueNotifier(null);
   final FocusNode _queryBarFocusNode = FocusNode();
   late final Listenable _queryFocusRequestNotifier;
   double _statusBarHeight = 0;
@@ -149,6 +153,7 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
     _queryFocusRequestNotifier.removeListener(_onQueryFocusRequest);
     _queryBarFocusNode.removeListener(_onQueryBarFocusChanged);
     _isSelectingNotifier.dispose();
+    _actionPopupExpandedNotifier.dispose();
     _browseToSelectAnimation.dispose();
     _subscriptions
       ..forEach((sub) => sub.cancel())
@@ -189,8 +194,8 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
       // cancel notification bubbling so that the draggable scroll bar
       // does not misinterpret filter bar scrolling for collection scrolling
       onNotification: (notification) => true,
-      child: AnimatedBuilder(
-        animation: collection.filterChangeNotifier,
+      child: ListenableBuilder(
+        listenable: collection.filterChangeNotifier,
         builder: (context, child) {
           final canRemoveFilters = appMode != AppMode.pickFilteredMediaInternal;
           return Selector<Query, bool>(
@@ -241,6 +246,7 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
                             },
                             child: FilterBar(
                               filters: visibleFilters,
+                              interactive: true,
                               onTap: onFilterTap,
                               onRemove: onFilterTap,
                             ),
@@ -347,19 +353,19 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
     final selectedItemCount = selection.selectedItems.length;
 
     bool isVisible(EntrySetAction action) => _actionDelegate.isVisible(
-          action,
-          appMode: appMode,
-          isSelecting: isSelecting,
-          itemCount: collection.entryCount,
-          selectedItemCount: selectedItemCount,
-          isTrash: isTrash,
-        );
+      action,
+      appMode: appMode,
+      isSelecting: isSelecting,
+      itemCount: collection.entryCount,
+      selectedItemCount: selectedItemCount,
+      isTrash: isTrash,
+    );
     bool canApply(EntrySetAction action) => _actionDelegate.canApply(
-          action,
-          isSelecting: isSelecting,
-          collection: collection,
-          selectedItemCount: selectedItemCount,
-        );
+      action,
+      isSelecting: isSelecting,
+      collection: collection,
+      selectedItemCount: selectedItemCount,
+    );
 
     return settings.useTvLayout
         ? _buildTelevisionActions(
@@ -430,10 +436,16 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
     final browsingQuickActions = settings.collectionBrowsingQuickActions;
     final selectionQuickActions = isTrash ? _trashSelectionQuickActions : settings.collectionSelectionQuickActions;
     final quickActions = (isSelecting ? selectionQuickActions : browsingQuickActions).take(max(0, availableCount - 1)).toList();
-    final quickActionButtons = quickActions.where(isVisible).map(
+    final quickActionButtons = quickActions
+        .where(isVisible)
+        .map(
           (action) => _buildButtonIcon(context, action, enabled: canApply(action), selection: selection),
         );
 
+    bool showInMenu(EntrySetAction? v) => v == null || (isVisible(v) && !quickActions.contains(v));
+    PopupMenuItem<EntrySetAction> toMenuItem(EntrySetAction action) => _toMenuItem(action, enabled: canApply(action), selection: selection);
+
+    final l10n = context.l10n;
     final animations = context.select<Settings, AccessibilityAnimations>((v) => v.accessibilityAnimations);
     return [
       ...quickActionButtons,
@@ -441,13 +453,10 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
         // key is expected by test driver
         key: const Key('appbar-menu-button'),
         itemBuilder: (context) {
-          bool _isValidForMenu(EntrySetAction? v) => v == null || (!quickActions.contains(v) && isVisible(v));
-          final generalMenuItems = EntrySetActions.general.where(_isValidForMenu).map(
-                (action) => _toMenuItem(action, enabled: canApply(action), selection: selection),
-              );
+          final generalMenuItems = EntrySetActions.general.where(showInMenu).map(toMenuItem);
 
           final allContextualActions = isSelecting ? EntrySetActions.pageSelection : EntrySetActions.pageBrowsing;
-          final contextualMenuActions = allContextualActions.where(_isValidForMenu).fold(<EntrySetAction?>[], (prev, v) {
+          final contextualMenuActions = allContextualActions.where(showInMenu).fold(<EntrySetAction?>[], (prev, v) {
             if (v == null && (prev.isEmpty || prev.last == null)) return prev;
             return [...prev, v];
           });
@@ -455,6 +464,11 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
             contextualMenuActions.removeLast();
           }
 
+          final exportMenuActions = EntrySetActions.export.where(showInMenu).map(toMenuItem).toList();
+          final editMenuActions = [
+            _buildRotateAndFlipMenuItems(context, canApply: canApply),
+            ...EntrySetActions.edit.where(showInMenu).map(toMenuItem),
+          ];
           final contextualMenuItems = <PopupMenuEntry<EntrySetAction>>[
             ...contextualMenuActions.map(
               (action) {
@@ -462,17 +476,26 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
                 return _toMenuItem(action, enabled: canApply(action), selection: selection);
               },
             ),
-            if (isSelecting && !settings.isReadOnly && appMode == AppMode.main && !isTrash)
-              PopupMenuExpansionPanel<EntrySetAction>(
-                enabled: hasSelection,
-                value: 'edit',
-                icon: AIcons.edit,
-                title: context.l10n.collectionActionEdit,
-                items: [
-                  _buildRotateAndFlipMenuItems(context, canApply: canApply),
-                  ...EntrySetActions.edit.where((v) => isVisible(v) && !quickActions.contains(v)).map((action) => _toMenuItem(action, enabled: canApply(action), selection: selection)),
-                ],
-              ),
+            if (isSelecting && !settings.isReadOnly && appMode == AppMode.main && !isTrash) ...[
+              if (exportMenuActions.isNotEmpty)
+                PopupMenuExpansionPanel<EntrySetAction>(
+                  enabled: hasSelection,
+                  value: 'export',
+                  expandedNotifier: _actionPopupExpandedNotifier,
+                  icon: AIcons.export,
+                  title: l10n.entryActionExport,
+                  items: exportMenuActions,
+                ),
+              if (editMenuActions.isNotEmpty)
+                PopupMenuExpansionPanel<EntrySetAction>(
+                  enabled: hasSelection,
+                  value: 'edit',
+                  expandedNotifier: _actionPopupExpandedNotifier,
+                  icon: AIcons.edit,
+                  title: l10n.collectionActionEdit,
+                  items: editMenuActions,
+                ),
+            ],
           ];
 
           return [
@@ -484,9 +507,13 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
           ];
         },
         onSelected: (action) async {
+          _actionPopupExpandedNotifier.value = null;
           // wait for the popup menu to hide before proceeding with the action
           await Future.delayed(animations.popUpAnimationDelay * timeDilation);
           await _onActionSelected(action);
+        },
+        onCanceled: () {
+          _actionPopupExpandedNotifier.value = null;
         },
         popUpAnimationStyle: animations.popUpAnimationStyle,
       ),
@@ -507,9 +534,10 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
     FocusNode? focusNode,
     required Selection<AvesEntry> selection,
   }) {
+    final blurred = settings.enableBlurEffect;
     final onPressed = enabled ? () => _onActionSelected(action) : null;
     switch (action) {
-      case EntrySetAction.toggleTitleSearch:
+      case .toggleTitleSearch:
         // `Query` may not be available during hero
         return Selector<Query?, bool>(
           selector: (context, query) => query?.enabled ?? false,
@@ -521,7 +549,35 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
             );
           },
         );
-      case EntrySetAction.toggleFavourite:
+      case .copy:
+        return MoveButton(
+          copy: true,
+          blurred: blurred,
+          onChooserValue: (album) => _actionDelegate.quickMove(context, album, copy: true),
+          onPressed: onPressed,
+        );
+      case .move:
+        return MoveButton(
+          copy: false,
+          blurred: blurred,
+          onChooserValue: (album) => _actionDelegate.quickMove(context, album, copy: false),
+          onPressed: onPressed,
+        );
+      case .editRating:
+        return RateButton(
+          blurred: blurred,
+          onChooserValue: (rating) => _actionDelegate.quickRate(context, rating),
+          focusNode: focusNode,
+          onPressed: onPressed,
+        );
+      case .editTags:
+        return TagButton(
+          blurred: blurred,
+          onChooserValue: (filter) => _actionDelegate.quickTag(context, filter),
+          focusNode: focusNode,
+          onPressed: onPressed,
+        );
+      case .toggleFavourite:
         return FavouriteToggler(
           entries: _getExpandedSelectedItems(selection),
           focusNode: focusNode,
@@ -544,7 +600,7 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
     required bool enabled,
   }) {
     switch (action) {
-      case EntrySetAction.toggleTitleSearch:
+      case .toggleTitleSearch:
         return TitleSearchTogglerCaption(
           enabled: enabled,
         );
@@ -559,12 +615,12 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
   PopupMenuItem<EntrySetAction> _toMenuItem(EntrySetAction action, {required bool enabled, required Selection<AvesEntry> selection}) {
     late Widget child;
     switch (action) {
-      case EntrySetAction.toggleTitleSearch:
+      case .toggleTitleSearch:
         child = TitleSearchToggler(
           queryEnabled: context.read<Query>().enabled,
           isMenuItem: true,
         );
-      case EntrySetAction.toggleFavourite:
+      case .toggleFavourite:
         child = FavouriteToggler(
           entries: _getExpandedSelectedItems(selection),
           isMenuItem: true,
@@ -585,30 +641,30 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
     required bool Function(EntrySetAction action) canApply,
   }) {
     Widget buildDivider() => const SizedBox(
-          height: 16,
-          child: VerticalDivider(
-            width: 1,
-            thickness: 1,
-          ),
-        );
+      height: 16,
+      child: VerticalDivider(
+        width: 1,
+        thickness: 1,
+      ),
+    );
 
     Widget buildItem(EntrySetAction action) => Expanded(
-          child: Material(
-            color: Colors.transparent,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(8)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: PopupMenuItem(
-              value: action,
-              enabled: canApply(action),
-              child: Tooltip(
-                message: action.getText(context),
-                child: Center(child: action.getIcon()),
-              ),
-            ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: PopupMenuItem(
+          value: action,
+          enabled: canApply(action),
+          child: Tooltip(
+            message: action.getText(context),
+            child: Center(child: action.getIcon()),
           ),
-        );
+        ),
+      ),
+    );
 
     return PopupMenuItemContainer(
       child: Row(
@@ -675,44 +731,45 @@ class _CollectionAppBarState extends State<CollectionAppBar> with RouteAware, Si
   Future<void> _onActionSelected(EntrySetAction action) async {
     switch (action) {
       // general
-      case EntrySetAction.configureView:
+      case .configureView:
         await _configureView();
-      case EntrySetAction.select:
+      case .select:
         context.read<Selection<AvesEntry>>().select();
-      case EntrySetAction.selectAll:
+      case .selectAll:
         context.read<Selection<AvesEntry>>().addToSelection(collection.sortedEntries);
-      case EntrySetAction.selectNone:
+      case .selectNone:
         context.read<Selection<AvesEntry>>().clearSelection();
       // browsing
-      case EntrySetAction.searchCollection:
-      case EntrySetAction.toggleTitleSearch:
-      case EntrySetAction.addDynamicAlbum:
-      case EntrySetAction.addShortcut:
-      case EntrySetAction.setHome:
+      case .searchCollection:
+      case .toggleTitleSearch:
+      case .addDynamicAlbum:
+      case .addShortcut:
+      case .setHome:
       // browsing or selecting
-      case EntrySetAction.map:
-      case EntrySetAction.slideshow:
-      case EntrySetAction.stats:
-      case EntrySetAction.rescan:
-      case EntrySetAction.emptyBin:
+      case .map:
+      case .slideshow:
+      case .stats:
+      case .rescan:
+      case .emptyBin:
       // selecting
-      case EntrySetAction.share:
-      case EntrySetAction.delete:
-      case EntrySetAction.restore:
-      case EntrySetAction.copy:
-      case EntrySetAction.move:
-      case EntrySetAction.rename:
-      case EntrySetAction.convert:
-      case EntrySetAction.toggleFavourite:
-      case EntrySetAction.rotateCCW:
-      case EntrySetAction.rotateCW:
-      case EntrySetAction.flip:
-      case EntrySetAction.editDate:
-      case EntrySetAction.editLocation:
-      case EntrySetAction.editTitleDescription:
-      case EntrySetAction.editRating:
-      case EntrySetAction.editTags:
-      case EntrySetAction.removeMetadata:
+      case .share:
+      case .delete:
+      case .restore:
+      case .copy:
+      case .move:
+      case .rename:
+      case .convert:
+      case .exportGpx:
+      case .toggleFavourite:
+      case .rotateCCW:
+      case .rotateCW:
+      case .flip:
+      case .editDate:
+      case .editLocation:
+      case .editTitleDescription:
+      case .editRating:
+      case .editTags:
+      case .removeMetadata:
         _actionDelegate.onActionSelected(context, action);
     }
   }

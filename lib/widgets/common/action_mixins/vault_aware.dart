@@ -9,10 +9,8 @@ import 'package:aves/widgets/dialogs/aves_dialog.dart';
 import 'package:aves/widgets/dialogs/filter_editors/password_dialog.dart';
 import 'package:aves/widgets/dialogs/filter_editors/pattern_dialog.dart';
 import 'package:aves/widgets/dialogs/filter_editors/pin_dialog.dart';
-import 'package:aves_model/aves_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:local_auth/error_codes.dart' as auth_error;
 import 'package:local_auth/local_auth.dart';
 
 mixin VaultAwareMixin on FeedbackMixin {
@@ -24,7 +22,7 @@ mixin VaultAwareMixin on FeedbackMixin {
 
     bool? confirmed;
     switch (details.lockType) {
-      case VaultLockType.system:
+      case .system:
         try {
           confirmed = await LocalAuthentication().authenticate(
             localizedReason: context.l10n.authenticateToUnlockVault,
@@ -36,7 +34,7 @@ mixin VaultAwareMixin on FeedbackMixin {
             await reportService.recordError(e, stack);
           }
         }
-      case VaultLockType.pattern:
+      case .pattern:
         final pattern = await showDialog<String>(
           context: context,
           builder: (context) => const PatternDialog(needConfirmation: false),
@@ -45,7 +43,7 @@ mixin VaultAwareMixin on FeedbackMixin {
         if (pattern != null) {
           confirmed = pattern == await securityService.readValue(details.passKey);
         }
-      case VaultLockType.pin:
+      case .pin:
         final pin = await showDialog<String>(
           context: context,
           builder: (context) => const PinDialog(needConfirmation: false),
@@ -54,7 +52,7 @@ mixin VaultAwareMixin on FeedbackMixin {
         if (pin != null) {
           confirmed = pin == await securityService.readValue(details.passKey);
         }
-      case VaultLockType.password:
+      case .password:
         final password = await showDialog<String>(
           context: context,
           builder: (context) => const PasswordDialog(needConfirmation: false),
@@ -83,7 +81,7 @@ mixin VaultAwareMixin on FeedbackMixin {
     return filter is StoredAlbumFilter ? unlockAlbum(context, filter.album) : Future.value(true);
   }
 
-  Future<bool> unlockFilters(BuildContext context, Set<StoredAlbumFilter> filters) async {
+  Future<bool> unlockFilters(BuildContext context, Set<CollectionFilter> filters) async {
     var unlocked = true;
     await Future.forEach(filters, (filter) async {
       if (unlocked) {
@@ -93,30 +91,24 @@ mixin VaultAwareMixin on FeedbackMixin {
     return unlocked;
   }
 
-  void lockFilters(Set<StoredAlbumFilter> filters) => vaults.lock(filters.map((v) => v.album).toSet());
+  void lockFilters(Set<CollectionFilter> filters) => vaults.lock(filters.whereType<StoredAlbumFilter>().map((v) => v.album).toSet());
 
   Future<bool> setVaultPass(BuildContext context, VaultDetails details) async {
     switch (details.lockType) {
-      case VaultLockType.system:
+      case .system:
         final l10n = context.l10n;
         try {
           return await LocalAuthentication().authenticate(
             localizedReason: l10n.authenticateToConfigureVault,
           );
         } on PlatformException catch (e, stack) {
-          await showDialog(
+          await showWarningDialog(
             context: context,
-            builder: (context) => AvesDialog(
-              content: Text(e.message ?? l10n.genericFailureFeedback),
-              actions: const [OkButton()],
-            ),
-            routeSettings: const RouteSettings(name: AvesDialog.warningRouteName),
+            message: e.message ?? l10n.genericFailureFeedback,
           );
-          if (e.code != auth_error.notAvailable) {
-            await reportService.recordError(e, stack);
-          }
+          await reportService.recordError(e, stack);
         }
-      case VaultLockType.pattern:
+      case .pattern:
         final pattern = await showDialog<String>(
           context: context,
           builder: (context) => const PatternDialog(needConfirmation: true),
@@ -125,7 +117,7 @@ mixin VaultAwareMixin on FeedbackMixin {
         if (pattern != null) {
           return await securityService.writeValue(details.passKey, pattern);
         }
-      case VaultLockType.pin:
+      case .pin:
         final pin = await showDialog<String>(
           context: context,
           builder: (context) => const PinDialog(needConfirmation: true),
@@ -134,7 +126,7 @@ mixin VaultAwareMixin on FeedbackMixin {
         if (pin != null) {
           return await securityService.writeValue(details.passKey, pin);
         }
-      case VaultLockType.password:
+      case .password:
         final password = await showDialog<String>(
           context: context,
           builder: (context) => const PasswordDialog(needConfirmation: true),

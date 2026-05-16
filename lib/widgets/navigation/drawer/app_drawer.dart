@@ -1,5 +1,4 @@
 import 'package:aves/model/filters/container/album_group.dart';
-import 'package:aves/model/filters/container/dynamic_album.dart';
 import 'package:aves/model/filters/covered/stored_album.dart';
 import 'package:aves/model/filters/trash.dart';
 import 'package:aves/model/settings/settings.dart';
@@ -60,8 +59,7 @@ class AppDrawer extends StatefulWidget {
     final specialAlbums = source.rawAlbums.where((album) {
       final type = androidFileUtils.getAlbumType(album);
       return [AlbumType.camera, AlbumType.download, AlbumType.screenshots].contains(type);
-    }).toList()
-      ..sort(source.compareAlbumsByName);
+    }).toList()..sort(source.compareAlbumsByName);
     return specialAlbums.map((v) => StoredAlbumFilter(v, source.getStoredAlbumDisplayName(context, v))).toList();
   }
 
@@ -85,7 +83,7 @@ class _AppDrawerState extends State<AppDrawer> with WidgetsBindingObserver {
   // using the default controller conflicts
   // with bottom nav bar primary scroll monitoring
   final ScrollController _scrollController = ScrollController();
-  late Future<List<dynamic>> _profileSwitchFuture;
+  late Future<List<Object>> _profileSwitchFuture;
   bool _profileSwitchPermissionRequested = false;
 
   CollectionLens? get currentCollection => widget.currentCollection;
@@ -100,13 +98,14 @@ class _AppDrawerState extends State<AppDrawer> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
-      case AppLifecycleState.resumed:
+      case .resumed:
         if (_profileSwitchPermissionRequested) {
           _profileSwitchPermissionRequested = false;
           _initProfileSwitchFuture();
@@ -179,10 +178,12 @@ class _AppDrawerState extends State<AppDrawer> with WidgetsBindingObserver {
     Future<void> goTo(String routeName, WidgetBuilder pageBuilder) async {
       Navigator.maybeOf(context)?.pop();
       await Future.delayed(ADurations.drawerTransitionLoose);
-      await Navigator.maybeOf(context)?.push(MaterialPageRoute(
-        settings: RouteSettings(name: routeName),
-        builder: pageBuilder,
-      ));
+      await Navigator.maybeOf(context)?.push(
+        MaterialPageRoute(
+          settings: RouteSettings(name: routeName),
+          builder: pageBuilder,
+        ),
+      );
     }
 
     final colorScheme = Theme.of(context).colorScheme;
@@ -255,17 +256,15 @@ class _AppDrawerState extends State<AppDrawer> with WidgetsBindingObserver {
                   ),
                 ],
               ),
-              FutureBuilder<List<dynamic>>(
+              FutureBuilder<List<Object>>(
                 future: _profileSwitchFuture,
                 builder: (context, snapshot) {
                   final flags = snapshot.data;
                   if (flags == null) return const SizedBox();
 
-                  final [
-                    bool canRequestInteractAcrossProfiles,
-                    bool canSwitchProfile,
-                    String profileSwitchingLabel,
-                  ] = flags;
+                  final canRequestInteractAcrossProfiles = flags[0] as bool;
+                  final canSwitchProfile = flags[1] as bool;
+                  final profileSwitchingLabel = flags[2] as String;
                   if ((!canRequestInteractAcrossProfiles && !canSwitchProfile) || profileSwitchingLabel.isEmpty) return const SizedBox();
 
                   return OutlinedButton(
@@ -325,17 +324,19 @@ class _AppDrawerState extends State<AppDrawer> with WidgetsBindingObserver {
     final currentFilters = currentCollection?.filters;
     return typeBookmarks
         .where((filter) => !hiddenFilters.contains(filter))
-        .map((filter) => CollectionNavTile(
-              // key is expected by test driver
-              key: Key('drawer-type-${filter?.key}'),
-              leading: DrawerFilterIcon(filter: filter),
-              title: DrawerFilterTitle(filter: filter),
-              filters: {filter},
-              isSelected: () {
-                if (currentFilters == null || currentFilters.length > 1) return false;
-                return currentFilters.firstOrNull == filter;
-              },
-            ))
+        .map(
+          (filter) => CollectionNavTile(
+            // key is expected by test driver
+            key: Key('drawer-type-${filter?.key}'),
+            leading: DrawerFilterIcon(filter: filter),
+            title: DrawerFilterTitle(filter: filter),
+            filters: {filter},
+            isSelected: () {
+              if (currentFilters == null || currentFilters.length > 1) return false;
+              return currentFilters.firstOrNull == filter;
+            },
+          ),
+        )
         .toList();
   }
 
@@ -343,29 +344,26 @@ class _AppDrawerState extends State<AppDrawer> with WidgetsBindingObserver {
     final source = context.read<CollectionSource>();
     final currentFilters = currentCollection?.filters;
     return StreamBuilder(
-        stream: source.eventBus.on<AlbumsChangedEvent>(),
-        builder: (context, snapshot) {
-          final albums = AppDrawer.effectiveAlbumBookmarks(context);
-          if (albums.isEmpty) return const SizedBox();
-          return Column(
-            children: [
-              const Divider(),
-              ...albums.map((filter) => AlbumNavTile(
-                    filter: filter,
-                    isSelected: () {
-                      if (currentFilters == null || currentFilters.length > 1) return false;
-                      final currentFilter = currentFilters.firstOrNull;
-                      if (currentFilter is StoredAlbumFilter && filter is StoredAlbumFilter) {
-                        return currentFilter.album == filter.album;
-                      } else if (currentFilter is DynamicAlbumFilter && filter is DynamicAlbumFilter) {
-                        return currentFilter.name == filter.name;
-                      }
-                      return false;
-                    },
-                  )),
-            ],
-          );
-        });
+      stream: source.eventBus.on<AlbumsChangedEvent>(),
+      builder: (context, snapshot) {
+        final albums = AppDrawer.effectiveAlbumBookmarks(context);
+        if (albums.isEmpty) return const SizedBox();
+        return Column(
+          children: [
+            const Divider(),
+            ...albums.map(
+              (filter) => AlbumNavTile(
+                filter: filter,
+                isSelected: () {
+                  if (currentFilters == null || currentFilters.length != 1) return false;
+                  return currentFilters.firstOrNull == filter;
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   List<Widget> _buildPageLinks(BuildContext context) {
@@ -425,8 +423,8 @@ class _AppDrawerState extends State<AppDrawer> with WidgetsBindingObserver {
   }
 
   Widget get debugTile => const PageNavTile(
-        // key is expected by test driver
-        key: Key('drawer-debug'),
-        navItem: AvesNavItem(route: AppDebugPage.routeName),
-      );
+    // key is expected by test driver
+    key: Key('drawer-debug'),
+    navItem: AvesNavItem(route: AppDebugPage.routeName),
+  );
 }

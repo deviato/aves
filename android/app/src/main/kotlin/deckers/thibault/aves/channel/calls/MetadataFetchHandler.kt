@@ -91,7 +91,7 @@ import deckers.thibault.aves.utils.MimeTypes
 import deckers.thibault.aves.utils.MimeTypes.TIFF_EXTENSION_PATTERN
 import deckers.thibault.aves.utils.MimeTypes.canReadWithExifInterface
 import deckers.thibault.aves.utils.MimeTypes.canReadWithMetadataExtractor
-import deckers.thibault.aves.utils.MimeTypes.isHeic
+import deckers.thibault.aves.utils.MimeTypes.isIsoBMFFImage
 import deckers.thibault.aves.utils.MimeTypes.isVideo
 import deckers.thibault.aves.utils.StorageUtils
 import io.flutter.plugin.common.MethodCall
@@ -254,7 +254,7 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
 
                         val sameNameDirs = dirEntry.value
                         val sameNameDirCount = sameNameDirs.size
-                        for (dirIndex in 0 until sameNameDirCount) {
+                        for (dirIndex in 0..<sameNameDirCount) {
                             val dir = sameNameDirs[dirIndex]
 
                             // directory name
@@ -436,7 +436,7 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
             }
         }
 
-        XMP.checkHeic(context, mimeType, uri, foundXmp, ::fallbackProcessXmp)
+        XMP.checkIsoBMFFImage(context, mimeType, uri, foundXmp, ::fallbackProcessXmp)
         // `metadata-extractor` may fail to get UUID boxes for some MP4 files,
         // so we always check with `mp4parser`, even for smaller files
         XMP.checkMp4(context, mimeType, uri) { dirs ->
@@ -472,7 +472,7 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
             // Android's `MediaExtractor` and `MediaPlayer` cannot be used for details
             // about embedded images as they do not list them as separate tracks
             // and only identify at most one
-        } else if (isHeic(mimeType)) {
+        } else if (isIsoBMFFImage(mimeType)) {
             Mp4ParserHelper.getSamsungSefd(context, uri)?.let { (_, bytes) ->
                 metadataMap[Mp4ParserHelper.SAMSUNG_MAKERNOTE_BOX_TYPE] = hashMapOf(
                     "Size" to bytes.size.toString(),
@@ -536,7 +536,7 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
         val metadataMap = HashMap<String, Any>()
         getCatalogMetadataByMetadataExtractor(mimeType, uri, path, sizeBytes, metadataMap)
 
-        if (isVideo(mimeType) || isHeic(mimeType)) {
+        if (isVideo(mimeType) || isIsoBMFFImage(mimeType)) {
             getMultimediaCatalogMetadataByMediaMetadataRetriever(mimeType, uri, metadataMap)
 
             // fallback to MP4 `loci` box for location
@@ -557,9 +557,9 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
             }
         }
 
-        if (isHeic(mimeType)) {
+        if (isIsoBMFFImage(mimeType)) {
             val flags = (metadataMap[KEY_FLAGS] ?: 0) as Int
-            if ((flags and MASK_IS_MOTION_PHOTO == 0) && MultiPage.isHeicSefdMotionPhoto(context, uri)) {
+            if ((flags and MASK_IS_MOTION_PHOTO == 0) && MultiPage.isIsoBMFFImageSefdMotionPhoto(context, uri)) {
                 metadataMap[KEY_FLAGS] = flags or MASK_IS_MULTIPAGE or MASK_IS_MOTION_PHOTO
             }
         }
@@ -568,13 +568,60 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
         result.success(metadataMap)
     }
 
+    /**
+     * - `metadata-extractor` sometimes detects the wrong MIME type (e.g. `pef` file as `tiff`, `mpeg` as `dvd`, `avif` as `mov`)
+     * - the content resolver / media store sometimes reports the wrong MIME type (e.g. `png` file as `jpeg`, `heif` as `tiff`, `tiff` as `srw`)
+     * - `context.getContentResolver().getType()` sometimes returns an incorrect value
+     * - `MediaMetadataRetriever.setDataSource()` sometimes fails with `status = 0x80000000`
+     * - file extension is unreliable
+     * In the end, `metadata-extractor` is the most reliable, except for `tiff`/`dvd`/`mov`/`zip`
+     * (false positives, false negatives), in which case we trust the file extension
+     */
+    private fun resolveMimeType(
+        sourceMimeType: String,
+        uri: Uri,
+        path: String?,
+        sizeBytes: Long?,
+    ): String {
+        var mimeType = sourceMimeType
+        if (canReadWithMetadataExtractor(sourceMimeType)) {
+            try {
+                Metadata.openSafeInputStream(context, uri, sourceMimeType, sizeBytes)?.use { input ->
+                    val metadata = Helper.safeRead(input, sizeBytes)
+                    for (dir in metadata.getDirectoriesOfType(FileTypeDirectory::class.java)) {
+                        if (path?.matches(TIFF_EXTENSION_PATTERN) == true) {
+                            mimeType = MimeTypes.TIFF
+                        } else {
+                            // cf https://github.com/drewnoakes/metadata-extractor/issues/296
+                            dir.getSafeString(FileTypeDirectory.TAG_DETECTED_FILE_MIME_TYPE) {
+                                if (it != MimeTypes.TIFF && it != MimeTypes.DVD && it != MimeTypes.MOV && it != MimeTypes.ZIP) {
+                                    mimeType = it
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(LOG_TAG, "failed to read metadata by metadata-extractor for mimeType=$sourceMimeType uri=$uri", e)
+            } catch (e: NoClassDefFoundError) {
+                Log.w(LOG_TAG, "failed to read metadata by metadata-extractor for mimeType=$sourceMimeType uri=$uri", e)
+            } catch (e: AssertionError) {
+                Log.w(LOG_TAG, "failed to read metadata by metadata-extractor for mimeType=$sourceMimeType uri=$uri", e)
+            }
+        }
+        return mimeType
+    }
+
     private fun getCatalogMetadataByMetadataExtractor(
-        mimeType: String,
+        sourceMimeType: String,
         uri: Uri,
         path: String?,
         sizeBytes: Long?,
         metadataMap: HashMap<String, Any>,
     ) {
+        val mimeType = resolveMimeType(sourceMimeType, uri, path, sizeBytes)
+        metadataMap[KEY_MIME_TYPE] = mimeType
+
         var flags = (metadataMap[KEY_FLAGS] ?: 0) as Int
         var foundExif = false
         var foundXmp = false
@@ -638,27 +685,6 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
                     foundExif = metadata.directories.any { it is ExifDirectoryBase && it.tagCount > 0 }
                     foundMp4Uuid = metadata.directories.any { it is Mp4UuidBoxDirectory && it.tagCount > 0 }
 
-                    // File type
-                    for (dir in metadata.getDirectoriesOfType(FileTypeDirectory::class.java)) {
-                        // * `metadata-extractor` sometimes detects the wrong MIME type (e.g. `pef` file as `tiff`, `mpeg` as `dvd`, `avif` as `mov`)
-                        // * the content resolver / media store sometimes reports the wrong MIME type (e.g. `png` file as `jpeg`, `tiff` as `srw`)
-                        // * `context.getContentResolver().getType()` sometimes returns an incorrect value
-                        // * `MediaMetadataRetriever.setDataSource()` sometimes fails with `status = 0x80000000`
-                        // * file extension is unreliable
-                        // In the end, `metadata-extractor` is the most reliable, except for `tiff`/`dvd`/`mov`/`zip` (false positives, false negatives),
-                        // in which case we trust the file extension
-                        // cf https://github.com/drewnoakes/metadata-extractor/issues/296
-                        if (path?.matches(TIFF_EXTENSION_PATTERN) == true) {
-                            metadataMap[KEY_MIME_TYPE] = MimeTypes.TIFF
-                        } else {
-                            dir.getSafeString(FileTypeDirectory.TAG_DETECTED_FILE_MIME_TYPE) {
-                                if (it != MimeTypes.TIFF && it != MimeTypes.DVD && it != MimeTypes.MOV && it != MimeTypes.ZIP) {
-                                    metadataMap[KEY_MIME_TYPE] = it
-                                }
-                            }
-                        }
-                    }
-
                     // EXIF
                     for (dir in metadata.getDirectoriesOfType(ExifSubIFDDirectory::class.java)) {
                         dir.getDateOriginalMillis { metadataMap[KEY_DATE_MILLIS] = it }
@@ -673,8 +699,7 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
                             // in case there was no SubIFD directory
                             dir.getSafeDateMillis(ExifIFD0Directory.TAG_DATETIME, null)?.let { metadataMap[KEY_DATE_MILLIS] = it }
                         }
-                        dir.getSafeInt(ExifDirectoryBase.TAG_ORIENTATION) {
-                            val orientation = it
+                        dir.getSafeInt(ExifDirectoryBase.TAG_ORIENTATION) { orientation ->
                             if (isFlippedForExifCode(orientation)) {
                                 flags = flags or MASK_IS_FLIPPED
                             }
@@ -821,7 +846,7 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
             }
         }
 
-        XMP.checkHeic(context, mimeType, uri, foundXmp, ::processXmp)
+        XMP.checkIsoBMFFImage(context, mimeType, uri, foundXmp, ::processXmp)
         // `metadata-extractor` may fail to get UUID boxes for some MP4 files,
         // so we always check with `mp4parser`, even for smaller files
         XMP.checkMp4(context, mimeType, uri) { dirs ->
@@ -894,7 +919,7 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
                 }
             }
 
-            if (isHeic(mimeType)) {
+            if (isIsoBMFFImage(mimeType)) {
                 retriever.getSafeInt(MediaMetadataRetriever.METADATA_KEY_NUM_TRACKS) {
                     if (it > 1) flags = flags or MASK_IS_MULTIPAGE
                 }
@@ -1151,7 +1176,7 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
             }
         }
 
-        XMP.checkHeic(context, mimeType, uri, foundXmp, ::processXmp)
+        XMP.checkIsoBMFFImage(context, mimeType, uri, foundXmp, ::processXmp)
         // `metadata-extractor` may fail to get UUID boxes for some MP4 files,
         // so we always check with `mp4parser`, even for smaller files
         XMP.checkMp4(context, mimeType, uri) { dirs ->
@@ -1236,7 +1261,7 @@ class MetadataFetchHandler(private val context: Context) : MethodCallHandler {
             }
         }
 
-        XMP.checkHeic(context, mimeType, uri, foundXmp, ::processXmp)
+        XMP.checkIsoBMFFImage(context, mimeType, uri, foundXmp, ::processXmp)
         // `metadata-extractor` may fail to get UUID boxes for some MP4 files,
         // so we always check with `mp4parser`, even for smaller files
         XMP.checkMp4(context, mimeType, uri) { dirs ->

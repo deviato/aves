@@ -27,26 +27,26 @@ class RatingFilter extends CollectionFilter {
   }
 
   RatingFilter copyWith(String op) => RatingFilter(
-        rating,
-        op: op,
-        reversed: reversed,
-      );
+    rating,
+    op: op,
+    reversed: reversed,
+  );
 
-  factory RatingFilter.fromMap(Map<String, dynamic> json) {
+  factory RatingFilter.fromMap(Map<String, Object?> json) {
     return RatingFilter(
-      json['rating'] ?? 0,
-      op: json['op'] ?? opEqual,
-      reversed: json['reversed'] ?? false,
+      json['rating'] as int? ?? 0,
+      op: json['op'] as String? ?? opEqual,
+      reversed: json['reversed'] as bool? ?? false,
     );
   }
 
   @override
-  Map<String, dynamic> toMap() => {
-        'type': type,
-        'rating': rating,
-        'op': op,
-        'reversed': reversed,
-      };
+  Map<String, Object?> toMap() => {
+    'type': type,
+    'rating': rating,
+    'op': op,
+    'reversed': reversed,
+  };
 
   @override
   EntryPredicate get positiveTest => _test;
@@ -59,9 +59,9 @@ class RatingFilter extends CollectionFilter {
 
   @override
   String getLabel(BuildContext context) => switch (op) {
-        opOrLower || opOrGreater => '${UniChars.whiteMediumStar} ${formatRatingRange(context, rating, op)}',
-        opEqual || _ => formatRating(context, rating),
-      };
+    opOrLower || opOrGreater => '${UniChars.whiteMediumStar} ${formatRatingRange(context, rating, op)}',
+    opEqual || _ => formatRating(context, rating),
+  };
 
   @override
   Widget? iconBuilder(BuildContext context, double size, {bool allowGenericIcon = true}) {

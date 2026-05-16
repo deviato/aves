@@ -13,7 +13,7 @@ void main() => configureAndLaunch();
 
 Future<void> configureAndLaunch() async {
   enableFlutterDriverExtension();
-  await settings.init(monitorPlatformSettings: false);
+  await settings.init(monitorPlatformSettings: false, shouldSanitize: false);
   settings
     // app
     ..hasAcceptedTerms = true
@@ -46,6 +46,7 @@ Future<void> configureAndLaunch() async {
     ..viewerQuickActions = SettingsDefaults.viewerQuickActions
     ..showOverlayOnOpening = true
     ..showOverlayMinimap = false
+    ..showOverlayZoomLevel = false
     ..overlayHistogramStyle = OverlayHistogramStyle.none
     ..showOverlayInfo = true
     ..showOverlayDescription = false

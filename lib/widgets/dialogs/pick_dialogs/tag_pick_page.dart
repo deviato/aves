@@ -35,6 +35,7 @@ Future<TagBaseFilter?> pickTag({
   required BuildContext context,
   required Iterable<ChipType> chipTypes,
   required Uri? initialGroup,
+  GroupUriPredicate? isValidGroupPick,
 }) async {
   final source = context.read<CollectionSource>();
   if (source.targetScope != CollectionSource.fullScope) {
@@ -50,6 +51,7 @@ Future<TagBaseFilter?> pickTag({
         source: source,
         chipTypes: chipTypes,
         initialGroup: initialGroup,
+        isValidGroupPick: isValidGroupPick,
       ),
     ),
   );
@@ -61,11 +63,13 @@ class _TagPickPage extends StatefulWidget {
   final CollectionSource source;
   final Iterable<ChipType> chipTypes;
   final Uri? initialGroup;
+  final GroupUriPredicate? isValidGroupPick;
 
   const _TagPickPage({
     required this.source,
     required this.chipTypes,
     required this.initialGroup,
+    required this.isValidGroupPick,
   });
 
   @override
@@ -81,6 +85,8 @@ class _TagPickPageState extends State<_TagPickPage> with FeedbackMixin {
   Iterable<ChipType> get chipTypes => widget.chipTypes;
 
   bool get isPickingGroup => chipTypes.length == 1 && chipTypes.contains(ChipType.group);
+
+  bool get canPickGroupFromCrumbLine => chipTypes == ChipType.values;
 
   String get title {
     final l10n = context.l10n;
@@ -129,9 +135,9 @@ class _TagPickPageState extends State<_TagPickPage> with FeedbackMixin {
                             title: title,
                             actionDelegate: TagChipSetActionDelegate(gridItems),
                             actionsBuilder: _buildActions,
-                            isEmpty: false,
                             appBarHeightNotifier: _appBarHeightNotifier,
                             scrollController: scrollController,
+                            onGroupCrumbTap: canPickGroupFromCrumbLine ? _pickFilter : null,
                           ),
                           appBarHeightNotifier: _appBarHeightNotifier,
                           scrollController: scrollController,
@@ -175,16 +181,24 @@ class _TagPickPageState extends State<_TagPickPage> with FeedbackMixin {
 
   Widget? _buildFab(BuildContext context) {
     return isPickingGroup
-        ? FloatingActionButton.extended(
-            onPressed: () {
-              final groupUri = context.read<FilterGroupNotifier>().value;
-              final filter = groupUri != null ? tagGrouping.uriToFilter(groupUri) : TagGroupFilter.root;
-              if (filter is TagBaseFilter) {
-                _pickFilter(context, filter);
-              }
+        ? Selector<FilterGroupNotifier, Uri?>(
+            selector: (context, v) => v.value,
+            builder: (context, groupUri, child) {
+              final isValid = widget.isValidGroupPick?.call(groupUri) ?? true;
+              return FloatingActionButton.extended(
+                onPressed: isValid
+                    ? () {
+                        final filter = groupUri != null ? tagGrouping.uriToFilter(groupUri) : TagGroupFilter.root;
+                        if (filter is TagBaseFilter) {
+                          _pickFilter(context, filter);
+                        }
+                      }
+                    : null,
+                backgroundColor: isValid ? null : Theme.of(context).disabledColor,
+                icon: const Icon(AIcons.apply),
+                label: Text(context.l10n.groupPickerUseThisGroupButton),
+              );
             },
-            icon: const Icon(AIcons.apply),
-            label: Text(context.l10n.groupPickerUseThisGroupButton),
           )
         : null;
   }
@@ -201,16 +215,16 @@ class _TagPickPageState extends State<_TagPickPage> with FeedbackMixin {
     final selectedFilters = selectedItems.map((v) => v.filter).toSet();
 
     bool isVisible(ChipSetAction action) => actionDelegate.isVisible(
-          action,
-          appMode: appMode,
-          isSelecting: isSelecting,
-          itemCount: itemCount,
-          selectedFilters: selectedFilters,
-        );
+      action,
+      appMode: appMode,
+      isSelecting: isSelecting,
+      itemCount: itemCount,
+      selectedFilters: selectedFilters,
+    );
 
     void onActionSelected(ChipSetAction action) {
       switch (action) {
-        case ChipSetAction.createGroup:
+        case .createGroup:
           final parentGroupUri = context.read<FilterGroupNotifier>().value;
           _createGroup(parentGroupUri);
         default:
@@ -266,7 +280,9 @@ class _TagPickPageState extends State<_TagPickPage> with FeedbackMixin {
     ];
 
     return [
-      ...quickActions.where(isVisible).map(
+      ...quickActions
+          .where(isVisible)
+          .map(
             (action) => IconButton(
               icon: action.getIcon(),
               onPressed: () => onActionSelected(action),

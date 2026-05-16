@@ -22,14 +22,16 @@ abstract class SectionLayout extends Equatable {
     required this.headerExtent,
     required this.spacing,
     required this.builder,
-  })  : bodyFirstIndex = firstIndex + 1,
-        bodyMinOffset = minOffset + headerExtent;
+  }) : bodyFirstIndex = firstIndex + 1,
+       bodyMinOffset = minOffset + headerExtent;
 
   bool hasChild(int index) => firstIndex <= index && index <= lastIndex;
 
   bool hasChildAtOffset(double scrollOffset) => minOffset <= scrollOffset && scrollOffset <= maxOffset;
 
   double indexToLayoutOffset(int index);
+
+  double indexToMainAxisExtent(int index);
 
   int getMinChildIndexForScrollOffset(double scrollOffset);
 

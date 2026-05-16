@@ -68,8 +68,8 @@ class _TransformControlPanelState extends State<TransformControlPanel> with Tick
       children: [
         SizedBox(
           height: CropControlPanel.preferredHeight(context),
-          child: AnimatedBuilder(
-            animation: _tabController,
+          child: ListenableBuilder(
+            listenable: _tabController,
             builder: (context, child) {
               return AnimatedSwitcher(
                 duration: context.select<DurationsData, Duration>((v) => v.formTransition),
@@ -117,8 +117,8 @@ class CropControlPanel extends StatelessWidget {
   const CropControlPanel({super.key});
 
   static double preferredHeight(BuildContext context) => CropAspectRatio.values.map((v) {
-        return CaptionedButton.getSize(context, v.getText(context), showCaption: true).height;
-      }).max;
+    return CaptionedButton.getSize(context, v.getText(context), showCaption: true).height;
+  }).max;
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +170,7 @@ class RotationControlPanel extends StatelessWidget {
               final degrees = controller.transformation.straightenDegrees;
               return SliderTheme(
                 data: SliderTheme.of(context).copyWith(
-                  showValueIndicator: ShowValueIndicator.always,
+                  showValueIndicator: ShowValueIndicator.onDrag,
                 ),
                 child: Slider(
                   value: degrees,

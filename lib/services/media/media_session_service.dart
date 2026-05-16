@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:aves/model/entry/entry.dart';
+import 'package:aves/services/common/channel.dart';
+import 'package:aves/services/common/channel_isolate.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:aves_utils/aves_utils.dart';
 import 'package:aves_video/aves_video.dart';
@@ -23,18 +25,18 @@ abstract class MediaSessionService {
 }
 
 class PlatformMediaSessionService implements MediaSessionService, Disposable {
-  static const _platformObject = MethodChannel('deckers.thibault/aves/media_session');
+  final _sessionChannelIsolate = ChannelIsolate(AvesChannels.mediaSession);
 
   final Set<StreamSubscription> _subscriptions = {};
-  final EventChannel _mediaCommandChannel = const OptionalEventChannel('deckers.thibault/aves/media_command');
+  final EventChannel _commandChannel = const OptionalEventChannel('deckers.thibault/aves/media_command');
   final StreamController _streamController = StreamController.broadcast();
 
   PlatformMediaSessionService() {
-    _subscriptions.add(_mediaCommandChannel.receiveBroadcastStream().listen((event) => _onMediaCommand(event as Map?)));
+    _subscriptions.add(_commandChannel.receiveBroadcastStream().listen((event) => _onMediaCommand(event as Map?)));
   }
 
   @override
-  FutureOr onDispose() {
+  void onDispose() {
     _subscriptions
       ..forEach((sub) => sub.cancel())
       ..clear();
@@ -51,7 +53,7 @@ class PlatformMediaSessionService implements MediaSessionService, Disposable {
     required bool canSkipToPrevious,
   }) async {
     try {
-      await _platformObject.invokeMethod('update', <String, dynamic>{
+      await _sessionChannelIsolate.invokeMethod('update', <String, Object?>{
         'uri': entry.uri,
         'title': entry.bestTitle,
         'durationMillis': controller.duration,
@@ -69,7 +71,7 @@ class PlatformMediaSessionService implements MediaSessionService, Disposable {
   @override
   Future<void> release() async {
     try {
-      await _platformObject.invokeMethod('release');
+      await _sessionChannelIsolate.invokeMethod('release');
     } on PlatformException catch (e, stack) {
       await reportService.recordError(e, stack);
     }
@@ -77,14 +79,14 @@ class PlatformMediaSessionService implements MediaSessionService, Disposable {
 
   String _toPlatformState(VideoStatus status) {
     switch (status) {
-      case VideoStatus.paused:
+      case .paused:
         return 'paused';
-      case VideoStatus.playing:
+      case .playing:
         return 'playing';
-      case VideoStatus.idle:
-      case VideoStatus.initialized:
-      case VideoStatus.completed:
-      case VideoStatus.error:
+      case .idle:
+      case .initialized:
+      case .completed:
+      case .error:
         return 'stopped';
     }
   }

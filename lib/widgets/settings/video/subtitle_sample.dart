@@ -59,8 +59,8 @@ class SubtitleSample extends StatelessWidget {
                   builder: (context) => TextBackgroundPainter(
                     spans: textSpans,
                     style: DefaultTextStyle.of(context).style.copyWith(
-                          backgroundColor: settings.subtitleBackgroundColor,
-                        ),
+                      backgroundColor: settings.subtitleBackgroundColor,
+                    ),
                     textAlign: textAlign,
                     child: OutlinedText(
                       textSpans: textSpans,
@@ -79,23 +79,23 @@ class SubtitleSample extends StatelessWidget {
 
   Alignment _getAlignment(TextAlign textAlign, SubtitlePosition textPosition) {
     switch (textPosition) {
-      case SubtitlePosition.top:
+      case .top:
         switch (textAlign) {
-          case TextAlign.left:
+          case .left:
             return Alignment.topLeft;
-          case TextAlign.right:
+          case .right:
             return Alignment.topRight;
-          case TextAlign.center:
+          case .center:
           default:
             return Alignment.topCenter;
         }
-      case SubtitlePosition.bottom:
+      case .bottom:
         switch (textAlign) {
-          case TextAlign.left:
+          case .left:
             return Alignment.bottomLeft;
-          case TextAlign.right:
+          case .right:
             return Alignment.bottomRight;
-          case TextAlign.center:
+          case .center:
           default:
             return Alignment.bottomCenter;
         }

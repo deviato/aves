@@ -35,17 +35,17 @@ class PlaceholderFilter extends CollectionFilter {
     }
   }
 
-  factory PlaceholderFilter.fromMap(Map<String, dynamic> json) {
+  factory PlaceholderFilter.fromMap(Map<String, Object?> json) {
     return PlaceholderFilter._private(
-      json['placeholder'],
+      json['placeholder'] as String,
     );
   }
 
   @override
-  Map<String, dynamic> toMap() => {
-        'type': type,
-        'placeholder': placeholder,
-      };
+  Map<String, Object?> toMap() => {
+    'type': type,
+    'placeholder': placeholder,
+  };
 
   Future<String?> toTag(AvesEntry entry) async {
     switch (placeholder) {
@@ -76,7 +76,8 @@ class PlaceholderFilter extends CollectionFilter {
   }
 
   @override
-  EntryPredicate get positiveTest => (entry) => throw Exception('this is not a test');
+  EntryPredicate get positiveTest =>
+      (entry) => throw Exception('this is not a test');
 
   @override
   bool get exclusiveProp => false;

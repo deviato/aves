@@ -1,10 +1,11 @@
+import 'package:aves/services/common/channel.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
 class AccessibilityService {
-  static const _platform = MethodChannel('deckers.thibault/aves/accessibility');
+  static const _platform = AvesMethodChannel('deckers.thibault/aves/accessibility');
 
   static Future<bool> areAnimationsRemoved() async {
     try {
@@ -42,9 +43,9 @@ class AccessibilityService {
   static Future<int> getRecommendedTimeToRead(Duration originalTimeoutDuration) async {
     final originalTimeoutMillis = originalTimeoutDuration.inMilliseconds;
     try {
-      final result = await _platform.invokeMethod('getRecommendedTimeoutMillis', <String, dynamic>{
+      final result = await _platform.invokeMethod('getRecommendedTimeoutMillis', <String, Object?>{
         'originalTimeoutMillis': originalTimeoutMillis,
-        'content': ['icons', 'text']
+        'content': ['icons', 'text'],
       });
       if (result != null) return result as int;
     } on PlatformException catch (e, stack) {
@@ -56,9 +57,9 @@ class AccessibilityService {
   static Future<int> getRecommendedTimeToTakeAction(Duration originalTimeoutDuration) async {
     final originalTimeoutMillis = originalTimeoutDuration.inMilliseconds;
     try {
-      final result = await _platform.invokeMethod('getRecommendedTimeoutMillis', <String, dynamic>{
+      final result = await _platform.invokeMethod('getRecommendedTimeoutMillis', <String, Object?>{
         'originalTimeoutMillis': originalTimeoutMillis,
-        'content': ['controls', 'icons', 'text']
+        'content': ['controls', 'icons', 'text'],
       });
       if (result != null) return result as int;
     } on PlatformException catch (e, stack) {

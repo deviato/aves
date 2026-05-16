@@ -43,19 +43,19 @@ class MimeFilter extends CollectionFilter {
     _icon = icon ?? AIcons.vector;
   }
 
-  factory MimeFilter.fromMap(Map<String, dynamic> json) {
+  factory MimeFilter.fromMap(Map<String, Object?> json) {
     return MimeFilter(
-      json['mime'],
-      reversed: json['reversed'] ?? false,
+      json['mime'] as String,
+      reversed: json['reversed'] as bool? ?? false,
     );
   }
 
   @override
-  Map<String, dynamic> toMap() => {
-        'type': type,
-        'mime': mime,
-        'reversed': reversed,
-      };
+  Map<String, Object?> toMap() => {
+    'type': type,
+    'mime': mime,
+    'reversed': reversed,
+  };
 
   @override
   EntryPredicate get positiveTest => _test;

@@ -54,16 +54,16 @@ class AppReference extends StatelessWidget {
   }
 
   TextStyle _getAppTitleStyle(String locale) => TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.normal,
-        letterSpacing: canHaveLetterSpacing(locale) ? 1 : 0,
-        fontFeatures: const [FontFeature.enable('smcp')],
-      );
+    fontSize: 20,
+    fontWeight: FontWeight.normal,
+    letterSpacing: canHaveLetterSpacing(locale) ? 1 : 0,
+    fontFeatures: const [FontFeature.enable('smcp')],
+  );
 
   static List<Widget> buildLinks(BuildContext context) {
     final l10n = context.l10n;
     return [
-      LinkChip(
+      const LinkChip(
         leading: Icon(
           AIcons.github,
           size: 24,
@@ -72,7 +72,7 @@ class AppReference extends StatelessWidget {
         urlString: AppReference.avesGithub,
       ),
       LinkChip(
-        leading: Icon(
+        leading: const Icon(
           AIcons.legal,
           size: 22,
         ),

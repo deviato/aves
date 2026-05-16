@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:aves/model/entry/sort.dart';
+import 'package:aves/services/common/channel.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:aves/theme/format.dart';
 import 'package:collection/collection.dart';
@@ -9,11 +10,11 @@ import 'package:flutter/widgets.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 class GlobalSearch {
-  static const _platform = MethodChannel('deckers.thibault/aves/global_search');
+  static const _platform = AvesMethodChannel('deckers.thibault/aves/global_search');
 
   static Future<void> registerCallback() async {
     try {
-      await _platform.invokeMethod('registerCallback', <String, dynamic>{
+      await _platform.invokeMethod('registerCallback', <String, Object?>{
         // callback needs to be annotated with `@pragma('vm:entry-point')` to work in release mode
         'callbackHandle': PluginUtilities.getCallbackHandle(_init)?.toRawHandle(),
       });
@@ -34,7 +35,7 @@ Future<void> _init() async {
   // `intl` initialization for date formatting
   await initializeDateFormatting();
 
-  const _channel = MethodChannel('deckers.thibault/aves/global_search_background');
+  const _channel = AvesMethodChannel('deckers.thibault/aves/global_search_background');
   _channel.setMethodCallHandler((call) async {
     switch (call.method) {
       case 'getSuggestions':
@@ -46,7 +47,7 @@ Future<void> _init() async {
   await _channel.invokeMethod('initialized');
 }
 
-Future<List<Map<String, String?>>> _getSuggestions(dynamic args) async {
+Future<List<Map<String, String?>>> _getSuggestions(Object? args) async {
   final suggestions = <Map<String, String?>>[];
   if (args is Map) {
     final query = args['query'];
@@ -60,16 +61,18 @@ Future<List<Map<String, String?>>> _getSuggestions(dynamic args) async {
       catalogMetadata.forEach((metadata) => entries.firstWhereOrNull((entry) => entry.id == metadata.id)?.catalogMetadata = metadata);
       entries.sort(AvesEntrySort.compareByDate);
 
-      suggestions.addAll(entries.map((entry) {
-        final date = entry.bestDate;
-        return {
-          'data': entry.uri,
-          'mimeType': entry.mimeType,
-          'title': entry.bestTitle,
-          'subtitle': date != null ? formatDateTime(date, locale, use24hour) : null,
-          'iconUri': entry.uri,
-        };
-      }));
+      suggestions.addAll(
+        entries.map((entry) {
+          final date = entry.bestDate;
+          return {
+            'data': entry.uri,
+            'mimeType': entry.mimeType,
+            'title': entry.bestTitle,
+            'subtitle': date != null ? formatDateTime(date, locale, use24hour) : null,
+            'iconUri': entry.uri,
+          };
+        }),
+      );
     }
   }
   return suggestions;

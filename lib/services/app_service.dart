@@ -8,22 +8,23 @@ import 'package:aves/model/app_inventory.dart';
 import 'package:aves/model/entry/entry.dart';
 import 'package:aves/model/entry/extensions/props.dart';
 import 'package:aves/model/filters/filters.dart';
+import 'package:aves/services/common/channel.dart';
 import 'package:aves/services/common/decoding.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:streams_channel/streams_channel.dart';
 
 abstract class AppService {
   Future<Set<Package>> getPackages();
 
   Future<ui.ImageDescriptor?> getAppIcon(String packageName, double size);
 
-  Future<bool> copyToClipboard(String uri, String? label);
+  Future<bool> copyToClipboard({String? label, String? text, String? uri});
 
-  Future<Map<String, dynamic>> edit(String uri, String mimeType);
+  Future<Map<String, Object?>> edit(String uri, String mimeType);
 
   Future<bool> open(String uri, String mimeType, {required bool forceChooser});
 
@@ -47,16 +48,17 @@ abstract class AppService {
 }
 
 class PlatformAppService implements AppService {
-  static const _platform = MethodChannel('deckers.thibault/aves/app');
-  static final _stream = StreamsChannel('deckers.thibault/aves/activity_result_stream');
+  static const _platform = AvesMethodChannel('deckers.thibault/aves/app');
+  static final _stream = AvesStreamsChannel('deckers.thibault/aves/activity_result_stream');
 
   static final _knownAppDirs = {
     'com.google.android.apps.photos': {'Google Photos'},
     'com.kakao.talk': {'KakaoTalkDownload'},
     'com.sony.playmemories.mobile': {'Imaging Edge Mobile'},
+    'com.whatsapp': {'WhatsApp Animated Gifs', 'WhatsApp Documents', 'WhatsApp Images', 'WhatsApp Video'},
     'nekox.messenger': {'NekoX'},
     'org.telegram.messenger': {'Telegram Images', 'Telegram Video'},
-    'com.whatsapp': {'WhatsApp Animated Gifs', 'WhatsApp Documents', 'WhatsApp Images', 'WhatsApp Video'}
+    'ru.tech.imageresizershrinker': {'ImageToolbox'},
   };
 
   @override
@@ -68,7 +70,7 @@ class PlatformAppService implements AppService {
       _knownAppDirs.forEach((packageName, dirs) {
         final package = packages.firstWhereOrNull((package) => package.packageName == packageName);
         if (package != null) {
-          package.ownedDirs.addAll(dirs);
+          package.addOwnedDirs(dirs);
         }
       });
       return packages;
@@ -81,7 +83,7 @@ class PlatformAppService implements AppService {
   @override
   Future<ui.ImageDescriptor?> getAppIcon(String packageName, double size) async {
     try {
-      final result = await _platform.invokeMethod('getAppIcon', <String, dynamic>{
+      final result = await _platform.invokeMethod('getAppIcon', <String, Object?>{
         'packageName': packageName,
         'sizeDip': size,
       });
@@ -96,11 +98,12 @@ class PlatformAppService implements AppService {
   }
 
   @override
-  Future<bool> copyToClipboard(String uri, String? label) async {
+  Future<bool> copyToClipboard({String? label, String? text, String? uri}) async {
     try {
-      final result = await _platform.invokeMethod('copyToClipboard', <String, dynamic>{
-        'uri': uri,
+      final result = await _platform.invokeMethod('copyToClipboard', <String, Object?>{
         'label': label,
+        'text': text,
+        'uri': uri,
       });
       if (result != null) return result as bool;
     } on PlatformException catch (e, stack) {
@@ -110,25 +113,27 @@ class PlatformAppService implements AppService {
   }
 
   @override
-  Future<Map<String, dynamic>> edit(String uri, String mimeType) async {
+  Future<Map<String, Object?>> edit(String uri, String mimeType) async {
     try {
       final opCompleter = Completer<Map?>();
-      _stream.receiveBroadcastStream(<String, dynamic>{
-        'op': 'edit',
-        'uri': uri,
-        'mimeType': mimeType,
-      }).listen(
-        (data) => opCompleter.complete(data as Map?),
-        onError: opCompleter.completeError,
-        onDone: () {
-          if (!opCompleter.isCompleted) opCompleter.complete({'error': 'cancelled'});
-        },
-        cancelOnError: true,
-      );
+      _stream
+          .receiveBroadcastStream(<String, Object?>{
+            'op': 'edit',
+            'uri': uri,
+            'mimeType': mimeType,
+          })
+          .listen(
+            (data) => opCompleter.complete(data as Map?),
+            onError: opCompleter.completeError,
+            onDone: () {
+              if (!opCompleter.isCompleted) opCompleter.complete({'error': 'cancelled'});
+            },
+            cancelOnError: true,
+          );
       // `await` here, so that `completeError` will be caught below
       final result = await opCompleter.future;
       if (result == null) return {'error': 'cancelled'};
-      return result.cast<String, dynamic>();
+      return result.cast<String, Object?>();
     } on PlatformException catch (e, stack) {
       if (e.code != 'edit-resolve') {
         await reportService.recordError(e, stack);
@@ -140,7 +145,7 @@ class PlatformAppService implements AppService {
   @override
   Future<bool> open(String uri, String mimeType, {required bool forceChooser}) async {
     try {
-      final result = await _platform.invokeMethod('open', <String, dynamic>{
+      final result = await _platform.invokeMethod('open', <String, Object?>{
         'uri': uri,
         'mimeType': mimeType,
         'forceChooser': forceChooser,
@@ -155,7 +160,7 @@ class PlatformAppService implements AppService {
   @override
   Future<bool> openMap(LatLng latLng) async {
     try {
-      final result = await _platform.invokeMethod('openMap', <String, dynamic>{
+      final result = await _platform.invokeMethod('openMap', <String, Object?>{
         'geoUri': toGeoUri(latLng),
       });
       if (result != null) return result as bool;
@@ -168,7 +173,7 @@ class PlatformAppService implements AppService {
   @override
   Future<bool> setAs(String uri, String mimeType) async {
     try {
-      final result = await _platform.invokeMethod('setAs', <String, dynamic>{
+      final result = await _platform.invokeMethod('setAs', <String, Object?>{
         'uri': uri,
         'mimeType': mimeType,
       });
@@ -181,24 +186,26 @@ class PlatformAppService implements AppService {
 
   @override
   Future<bool> shareEntries(Iterable<AvesEntry> entries) {
-    return _share(groupBy<AvesEntry, String>(
-      entries,
-      // loosen MIME type to a generic one, so we can share with badly defined apps
-      // e.g. Google Lens declares receiving "image/jpeg" only, but it can actually handle more formats
-      (e) => e.mimeTypeAnySubtype,
-    ).map((k, v) => MapEntry(k, v.map((e) => e.uri).toList())));
+    return _share(
+      groupBy<AvesEntry, String>(
+        entries,
+        // loosen MIME type to a generic one, so we can share with badly defined apps
+        // e.g. Google Lens declares receiving "image/jpeg" only, but it can actually handle more formats
+        (e) => e.mimeTypeAnySubtype,
+      ).map((k, v) => MapEntry(k, v.map((e) => e.uri).toList())),
+    );
   }
 
   @override
   Future<bool> shareSingle(String uri, String mimeType) {
     return _share({
-      mimeType: [uri]
+      mimeType: [uri],
     });
   }
 
   Future<bool> _share(Map<String, List<String>> urisByMimeType) async {
     try {
-      final result = await _platform.invokeMethod('share', <String, dynamic>{
+      final result = await _platform.invokeMethod('share', <String, Object?>{
         'urisByMimeType': urisByMimeType,
       });
       if (result != null) return result as bool;
@@ -239,6 +246,7 @@ class PlatformAppService implements AppService {
             dateModifiedMillis: coverEntry.dateModifiedMillis ?? -1,
             extent: size,
           ),
+          decode: PaintingBinding.instance.instantiateImageCodecWithSize,
         );
         final frameInfo = await codec.getNextFrame();
         final byteData = await frameInfo.image.toByteData(format: ImageByteFormat.png);
@@ -248,7 +256,7 @@ class PlatformAppService implements AppService {
       }
     }
     try {
-      await _platform.invokeMethod('pinShortcut', <String, dynamic>{
+      await _platform.invokeMethod('pinShortcut', <String, Object?>{
         'label': label,
         'iconBytes': iconBytes,
         'route': route,

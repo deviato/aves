@@ -3,12 +3,13 @@ version: 0.0.1
 publish_to: none
 
 environment:
-  sdk: ">=3.6.0 <4.0.0" # incoherent dartfmt from 3.7.0
+  sdk: ">=3.11.5 <4.0.0"
 resolution: workspace
 
 dependencies:
   flutter:
     sdk: flutter
+  material_color_utilities:
   vector_math:
 
 dev_dependencies:

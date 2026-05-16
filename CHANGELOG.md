@@ -4,6 +4,159 @@ All notable changes to this project will be documented in this file.
 
 ## <a id="unreleased"></a>[Unreleased]
 
+### Fixed
+
+- Albums/Tags: cyclic group cleanup
+- Map: inconsistent viewer collection when changing orientation
+
+## <a id="v1.14.4"></a>[v1.14.4] - 2026-05-09
+
+### Added
+
+- Albums/Tags: filter collection with current group from crumb line
+- Cataloguing: improved metadata parsing for AVIF still images (requires rescan)
+- Navigation: allow adding album/tag group to bottom navigation bar
+- Navigation: allow adding recycle bin to bottom navigation bar
+- Navigation: allow adding album group to drawer
+- Explorer: show bottom navigation bar
+- Lao translation (thanks BoneNI)
+
+### Changed
+
+- Viewer: no longer hide overlay on playing video
+- build: package compressed native libraries for `izzy` flavor
+- upgraded Flutter to stable v3.41.9
+
+### Removed
+
+- build: `libre_rom` flavor, now redundant with `libre` flavor
+
+### Fixed
+
+- sorting by name mixed filters/groups without sections
+
+## <a id="v1.14.3"></a>[v1.14.3] - 2026-04-06
+
+### Fixed
+
+- undated item handling for date editing
+
+## <a id="v1.14.2"></a>[v1.14.2] - 2026-03-30
+
+### Added
+
+- Collection: GPX export
+
+### Changed
+
+- upgraded Flutter to stable v3.41.6
+
+### Fixed
+
+- cataloguing items having wrong type from Media Store
+- video player incorrectly looping when configured otherwise
+- recovered items staying in recycle bin forever
+- undated item handling for some file operations
+
+## <a id="v1.14.1"></a>[v1.14.1] - 2026-02-21
+
+### Changed
+
+- upgraded Flutter to stable v3.41.2
+
+### Fixed
+
+- widget rendering failing because of setting sanitization
+- panorama rendering regression by reverting switch from Skia to Impeller
+
+## <a id="v1.14.0"></a>[v1.14.0] - 2026-02-14
+
+### Added
+
+- Collection: allow using width/height when bulk renaming
+- Video: allow forcing hardware acceleration
+- Search: allow regex (wrapped in `/.../`) in query filter
+- Stats: export to CSV/JSON fields of filtered collection
+- predictive back gesture support (external only, intra-app support pending Flutter v3.42)
+
+### Changed
+
+- upgraded Flutter to stable v3.41.1
+- splash screen icon animation
+
+### Removed
+
+- support for Android API < 24 (Android 7.0 Nougat)
+
+### Fixed
+
+- inefficient PiP check causing high CPU usage
+
+## <a id="v1.13.12"></a>[v1.13.12] - 2025-12-23
+
+### Added
+
+- Viewer: mouse wheel scroll jumps to previous/next item
+
+### Changed
+
+- Collection: use developed item as representative for RAW stack
+- Viewer: removed thumbnail overlay synchronization delay
+
+### Fixed
+
+- crash when cataloguing some JPEG with invalid offsets
+- crash when editing some MP4 with large boxes
+- crash when decoding large Base64 images embedded in SVG
+- crash when decoding large app icons
+- crash when getting info from some multipage HEIC
+- crash when fetching some video thumbnails
+- GPX matching implementation
+- missing home screen shortcut icon
+- rendering of stripped TIFF with vertical flip
+
+## <a id="v1.13.11"></a>[v1.13.11] - 2025-11-18
+
+### Added
+
+- Viewer: optionally show zoom level on overlay
+- Stats: export filter lists to CSV
+- build: `libre_rom` flavor as variant of `libre` flavor for integration in custom ROM
+
+### Changed
+
+- Viewer: allow zooming out of panoramas until 25%
+
+### Fixed
+
+- decoding images with pixel config unsupported by region decoder and bitmap compressor
+- cataloguing still AVIF images
+
+## <a id="v1.13.10"></a>[v1.13.10] - 2025-11-16 [YANKED]
+
+## <a id="v1.13.9"></a>[v1.13.9] - 2025-10-11
+
+### Added
+
+- Collection: long press on copy/move/rating/tag quick action for quicker action
+- Widget: more shape options
+- Viewer: drag and drop in multi-window mode
+- Vaults: allow hiding like other albums
+- 16 KB memory page size support
+- Finnish translation (thanks Åzze, Olli, Ricky Tigg, Oris5)
+
+### Changed
+
+- Albums: show hidden albums when they are pinned
+
+### Fixed
+
+- saving metadata date when moving items to recycle bin
+- rescanning items in vaults
+- grouping when renaming album
+- thumbnail orientation for some RAW formats
+- converting portrait HEIF/RAW to requested size
+
 ## <a id="v1.13.8"></a>[v1.13.8] - 2025-09-08
 
 ### Added
@@ -1064,7 +1217,7 @@ All notable changes to this project will be documented in this file.
 
 - Viewer: optional gesture to show previous/next item
 - Albums / Countries / Tags: live title filter
-- option to hide confirmation message after moving items to the bin
+- option to hide confirmation message after moving items to the recycle bin
 - Collection / Info: edit description via Exif / IPTC / XMP
 - Info: read XMP from HEIF on Android >=11
 - Collection: support HEIF motion photos on Android >=11
@@ -1225,7 +1378,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - storage write access for Android <11
-- various bin related fixes
+- various recycle bin related fixes
 - Viewer: apply video settings change without leaving the viewer
 
 ## <a id="v1.6.1"></a>[v1.6.1] - 2022-02-23
@@ -1701,12 +1854,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-Collection: identify multipage TIFF & multitrack HEIF Viewer: support for multipage TIFF
-Viewer: support for cropped panoramas Albums: grouping options
+- Collection: identify multipage TIFF & multitrack HEIF
+- Viewer: support for multipage TIFF
+- Viewer: support for cropped panoramas
+- Albums: grouping options
 
 ### Changed
 
-upgraded libtiff to 4.2.0 for TIFF decoding
+- upgraded libtiff to 4.2.0 for TIFF decoding
 
 ### Fixed
 

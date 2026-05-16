@@ -19,6 +19,7 @@ import 'package:aves/widgets/filter_grids/common/app_bar.dart';
 import 'package:aves/widgets/filter_grids/common/filter_grid_page.dart';
 import 'package:aves/widgets/filter_grids/common/section_keys.dart';
 import 'package:aves_model/aves_model.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -63,7 +64,8 @@ class FilterNavigationPage<T extends CollectionFilter, CSAD extends ChipSetActio
   }
 
   static int compareFiltersByName(FilterGridItem<CollectionFilter> a, FilterGridItem<CollectionFilter> b) {
-    return a.filter.compareTo(b.filter);
+    // assume we compare context-independent labels
+    return compareAsciiUpperCaseNatural(a.filter.universalLabel, b.filter.universalLabel);
   }
 
   static int compareFiltersByPath<T extends CollectionFilter>(FilterGridItem<T> a, FilterGridItem<T> b) {
@@ -86,30 +88,32 @@ class FilterNavigationPage<T extends CollectionFilter, CSAD extends ChipSetActio
   ) {
     List<FilterGridItem<T>> toGridItem(CollectionSource source, Set<T> filters) {
       return filters
-          .map((filter) => FilterGridItem(
-                filter,
-                source.recentEntry(filter),
-              ))
+          .map(
+            (filter) => FilterGridItem(
+              filter,
+              source.recentEntry(filter),
+            ),
+          )
           .toList();
     }
 
     List<FilterGridItem<T>> allMapEntries = [];
     switch (sortFactor) {
-      case ChipSortFactor.name:
+      case .name:
         allMapEntries = toGridItem(source, filters)..sort(compareFiltersByName);
-      case ChipSortFactor.date:
+      case .date:
         allMapEntries = toGridItem(source, filters)..sort(compareFiltersByDate);
-      case ChipSortFactor.count:
+      case .count:
         final filtersWithCount = List.of(filters.map((filter) => MapEntry(filter, source.count(filter))));
         filtersWithCount.sort(compareFiltersByEntryCount);
         filters = filtersWithCount.map((kv) => kv.key).toSet();
         allMapEntries = toGridItem(source, filters);
-      case ChipSortFactor.size:
+      case .size:
         final filtersWithSize = List.of(filters.map((filter) => MapEntry(filter, source.size(filter))));
         filtersWithSize.sort(compareFiltersBySize);
         filters = filtersWithSize.map((kv) => kv.key).toSet();
         allMapEntries = toGridItem(source, filters);
-      case ChipSortFactor.path:
+      case .path:
         allMapEntries = toGridItem(source, filters)..sort(compareFiltersByPath);
     }
     if (reverse) {
@@ -141,9 +145,14 @@ class _FilterNavigationPageState<T extends CollectionFilter, CSAD extends ChipSe
                 source: widget.source,
                 title: widget.title,
                 actionDelegate: widget.actionDelegate,
-                isEmpty: widget.filterSections.isEmpty,
                 appBarHeightNotifier: _appBarHeightNotifier,
                 scrollController: scrollController,
+                onGroupCrumbTap: (context, filter) {
+                  final selection = context.read<Selection<FilterGridItem<T>>?>();
+                  if (selection == null || !selection.isSelecting) {
+                    Navigator.maybeOf(context)?.push(_buildCollectionPageRoute(filter));
+                  }
+                },
               ),
               appBarHeightNotifier: _appBarHeightNotifier,
               scrollController: scrollController,
@@ -172,20 +181,23 @@ class _FilterNavigationPageState<T extends CollectionFilter, CSAD extends ChipSe
                   if (filter is GroupBaseFilter) {
                     context.read<FilterGroupNotifier>().value = filter.uri;
                   } else {
-                    final route = MaterialPageRoute(
-                      settings: const RouteSettings(name: CollectionPage.routeName),
-                      builder: (context) => CollectionPage(
-                        source: context.read<CollectionSource>(),
-                        filters: {gridItem.filter},
-                      ),
-                    );
-                    navigate(route);
+                    navigate(_buildCollectionPageRoute(filter));
                   }
                 }
               },
             ),
           );
         },
+      ),
+    );
+  }
+
+  Route _buildCollectionPageRoute(CollectionFilter filter) {
+    return MaterialPageRoute(
+      settings: const RouteSettings(name: CollectionPage.routeName),
+      builder: (context) => CollectionPage(
+        source: context.read<CollectionSource>(),
+        filters: {filter},
       ),
     );
   }

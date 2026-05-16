@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:aves/model/covers.dart';
+import 'package:aves/services/common/channel.dart';
 import 'package:aves/services/common/output_buffer.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:aves_model/aves_model.dart';
 import 'package:flutter/services.dart';
-import 'package:streams_channel/streams_channel.dart';
 
 abstract class StorageService {
   Future<Map<String, int>> getDataUsage();
@@ -59,14 +59,14 @@ abstract class StorageService {
 }
 
 class PlatformStorageService implements StorageService {
-  static const _platform = MethodChannel('deckers.thibault/aves/storage');
-  static final _stream = StreamsChannel('deckers.thibault/aves/activity_result_stream');
+  static const _platform = AvesMethodChannel('deckers.thibault/aves/storage');
+  static final _stream = AvesStreamsChannel('deckers.thibault/aves/activity_result_stream');
 
   @override
   Future<Map<String, int>> getDataUsage() async {
     try {
       final result = await _platform.invokeMethod('getDataUsage');
-      if (result != null) return (result as Map).cast<String, int>();
+      if (result is Map) return result.cast<String, int>();
     } on PlatformException catch (e, stack) {
       await reportService.recordError(e, stack);
     }
@@ -87,7 +87,7 @@ class PlatformStorageService implements StorageService {
   @override
   Future<String> getExternalCacheDirectory() async {
     try {
-      final result = await _platform.invokeMethod('getCacheDirectory', <String, dynamic>{
+      final result = await _platform.invokeMethod('getCacheDirectory', <String, Object?>{
         'external': true,
       });
       return result as String;
@@ -100,7 +100,7 @@ class PlatformStorageService implements StorageService {
   @override
   Future<Set<String>> getUntrackedTrashPaths(Iterable<String> knownPaths) async {
     try {
-      final result = await _platform.invokeMethod('getUntrackedTrashPaths', <String, dynamic>{
+      final result = await _platform.invokeMethod('getUntrackedTrashPaths', <String, Object?>{
         'knownPaths': knownPaths.toList(),
       });
       return (result as List).cast<String>().toSet();
@@ -113,7 +113,7 @@ class PlatformStorageService implements StorageService {
   @override
   Future<Set<String>> getUntrackedVaultPaths(String vaultName, Iterable<String> knownPaths) async {
     try {
-      final result = await _platform.invokeMethod('getUntrackedVaultPaths', <String, dynamic>{
+      final result = await _platform.invokeMethod('getUntrackedVaultPaths', <String, Object?>{
         'vault': vaultName,
         'knownPaths': knownPaths.toList(),
       });
@@ -138,7 +138,7 @@ class PlatformStorageService implements StorageService {
   @override
   Future<int?> getFreeSpace(StorageVolume volume) async {
     try {
-      final result = await _platform.invokeMethod('getFreeSpace', <String, dynamic>{
+      final result = await _platform.invokeMethod('getFreeSpace', <String, Object?>{
         'path': volume.path,
       });
       return result as int?;
@@ -162,7 +162,7 @@ class PlatformStorageService implements StorageService {
   @override
   Future<Set<VolumeRelativeDirectory>> getInaccessibleDirectories(Iterable<String> dirPaths) async {
     try {
-      final result = await _platform.invokeMethod('getInaccessibleDirectories', <String, dynamic>{
+      final result = await _platform.invokeMethod('getInaccessibleDirectories', <String, Object?>{
         'dirPaths': dirPaths.toList(),
       });
       if (result != null) {
@@ -182,9 +182,11 @@ class PlatformStorageService implements StorageService {
         return (result as List)
             .cast<Map>()
             .map(VolumeRelativeDirectory.fromMap)
-            .map((dir) => dir.copyWith(
-                  relativeDir: dir.relativeDir.toLowerCase(),
-                ))
+            .map(
+              (dir) => dir.copyWith(
+                relativeDir: dir.relativeDir.toLowerCase(),
+              ),
+            )
             .toSet();
       }
     } on PlatformException catch (e, stack) {
@@ -196,7 +198,7 @@ class PlatformStorageService implements StorageService {
   @override
   Future<void> revokeDirectoryAccess(String path) async {
     try {
-      await _platform.invokeMethod('revokeDirectoryAccess', <String, dynamic>{
+      await _platform.invokeMethod('revokeDirectoryAccess', <String, Object?>{
         'path': path,
       });
     } on PlatformException catch (e, stack) {
@@ -208,7 +210,7 @@ class PlatformStorageService implements StorageService {
   @override
   Future<int> deleteEmptyRegularDirectories(Set<String> dirPaths) async {
     try {
-      final result = await _platform.invokeMethod('deleteEmptyDirectories', <String, dynamic>{
+      final result = await _platform.invokeMethod('deleteEmptyDirectories', <String, Object?>{
         'dirPaths': dirPaths.where((v) => covers.effectiveAlbumType(v) == AlbumType.regular).toList(),
       });
       if (result != null) return result as int;
@@ -254,7 +256,7 @@ class PlatformStorageService implements StorageService {
   @override
   Future<bool> canInsertMedia(Set<VolumeRelativeDirectory> directories) async {
     try {
-      final result = await _platform.invokeMethod('canInsertMedia', <String, dynamic>{
+      final result = await _platform.invokeMethod('canInsertMedia', <String, Object?>{
         'directories': directories.map((v) => v.toMap()).toList(),
       });
       if (result != null) return result as bool;
@@ -269,17 +271,19 @@ class PlatformStorageService implements StorageService {
   Future<bool> requestDirectoryAccess(String path) async {
     try {
       final opCompleter = Completer<bool>();
-      _stream.receiveBroadcastStream(<String, dynamic>{
-        'op': 'requestDirectoryAccess',
-        'path': path,
-      }).listen(
-        (data) => opCompleter.complete(data as bool),
-        onError: opCompleter.completeError,
-        onDone: () {
-          if (!opCompleter.isCompleted) opCompleter.complete(false);
-        },
-        cancelOnError: true,
-      );
+      _stream
+          .receiveBroadcastStream(<String, Object?>{
+            'op': 'requestDirectoryAccess',
+            'path': path,
+          })
+          .listen(
+            (data) => opCompleter.complete(data as bool),
+            onError: opCompleter.completeError,
+            onDone: () {
+              if (!opCompleter.isCompleted) opCompleter.complete(false);
+            },
+            cancelOnError: true,
+          );
       // `await` here, so that `completeError` will be caught below
       return await opCompleter.future;
     } on PlatformException catch (e, stack) {
@@ -293,18 +297,20 @@ class PlatformStorageService implements StorageService {
   Future<bool> requestMediaFileAccess(List<String> uris, List<String> mimeTypes) async {
     try {
       final opCompleter = Completer<bool>();
-      _stream.receiveBroadcastStream(<String, dynamic>{
-        'op': 'requestMediaFileAccess',
-        'uris': uris,
-        'mimeTypes': mimeTypes,
-      }).listen(
-        (data) => opCompleter.complete(data as bool),
-        onError: opCompleter.completeError,
-        onDone: () {
-          if (!opCompleter.isCompleted) opCompleter.complete(false);
-        },
-        cancelOnError: true,
-      );
+      _stream
+          .receiveBroadcastStream(<String, Object?>{
+            'op': 'requestMediaFileAccess',
+            'uris': uris,
+            'mimeTypes': mimeTypes,
+          })
+          .listen(
+            (data) => opCompleter.complete(data as bool),
+            onError: opCompleter.completeError,
+            onDone: () {
+              if (!opCompleter.isCompleted) opCompleter.complete(false);
+            },
+            cancelOnError: true,
+          );
       // `await` here, so that `completeError` will be caught below
       return await opCompleter.future;
     } on PlatformException catch (e, stack) {
@@ -324,19 +330,21 @@ class PlatformStorageService implements StorageService {
   Future<bool?> createFile(String name, String mimeType, Uint8List bytes) async {
     try {
       final opCompleter = Completer<bool?>();
-      _stream.receiveBroadcastStream(<String, dynamic>{
-        'op': 'createFile',
-        'name': name,
-        'mimeType': mimeType,
-        'bytes': bytes,
-      }).listen(
-        (data) => opCompleter.complete(data as bool?),
-        onError: opCompleter.completeError,
-        onDone: () {
-          if (!opCompleter.isCompleted) opCompleter.complete(false);
-        },
-        cancelOnError: true,
-      );
+      _stream
+          .receiveBroadcastStream(<String, Object?>{
+            'op': 'createFile',
+            'name': name,
+            'mimeType': mimeType,
+            'bytes': bytes,
+          })
+          .listen(
+            (data) => opCompleter.complete(data as bool?),
+            onError: opCompleter.completeError,
+            onDone: () {
+              if (!opCompleter.isCompleted) opCompleter.complete(false);
+            },
+            cancelOnError: true,
+          );
       // `await` here, so that `completeError` will be caught below
       return await opCompleter.future;
     } on PlatformException catch (e, stack) {
@@ -350,21 +358,23 @@ class PlatformStorageService implements StorageService {
     try {
       final opCompleter = Completer<Uint8List>();
       final sink = OutputBuffer();
-      _stream.receiveBroadcastStream(<String, dynamic>{
-        'op': 'openFile',
-        'mimeType': mimeType,
-      }).listen(
-        (data) {
-          final chunk = data as Uint8List;
-          sink.add(chunk);
-        },
-        onError: opCompleter.completeError,
-        onDone: () {
-          sink.close();
-          opCompleter.complete(sink.bytes);
-        },
-        cancelOnError: true,
-      );
+      _stream
+          .receiveBroadcastStream(<String, Object?>{
+            'op': 'openFile',
+            'mimeType': mimeType,
+          })
+          .listen(
+            (data) {
+              final chunk = data as Uint8List;
+              sink.add(chunk);
+            },
+            onError: opCompleter.completeError,
+            onDone: () {
+              sink.close();
+              opCompleter.complete(sink.bytes);
+            },
+            cancelOnError: true,
+          );
       // `await` here, so that `completeError` will be caught below
       return await opCompleter.future;
     } on PlatformException catch (e, stack) {
@@ -377,19 +387,21 @@ class PlatformStorageService implements StorageService {
   Future<bool?> copyFile(String name, String mimeType, String sourceUri) async {
     try {
       final opCompleter = Completer<bool?>();
-      _stream.receiveBroadcastStream(<String, dynamic>{
-        'op': 'copyFile',
-        'name': name,
-        'mimeType': mimeType,
-        'sourceUri': sourceUri,
-      }).listen(
-        (data) => opCompleter.complete(data as bool?),
-        onError: opCompleter.completeError,
-        onDone: () {
-          if (!opCompleter.isCompleted) opCompleter.complete(false);
-        },
-        cancelOnError: true,
-      );
+      _stream
+          .receiveBroadcastStream(<String, Object?>{
+            'op': 'copyFile',
+            'name': name,
+            'mimeType': mimeType,
+            'sourceUri': sourceUri,
+          })
+          .listen(
+            (data) => opCompleter.complete(data as bool?),
+            onError: opCompleter.completeError,
+            onDone: () {
+              if (!opCompleter.isCompleted) opCompleter.complete(false);
+            },
+            cancelOnError: true,
+          );
       // `await` here, so that `completeError` will be caught below
       return await opCompleter.future;
     } on PlatformException catch (e, stack) {

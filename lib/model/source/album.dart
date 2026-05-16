@@ -51,25 +51,31 @@ mixin AlbumMixin on SourceBase {
     final regularAlbums = <String>[], appAlbums = <String>[], specialAlbums = <String>[];
     for (final album in rawAlbums) {
       switch (androidFileUtils.getAlbumType(album)) {
-        case AlbumType.regular:
+        case .regular:
           regularAlbums.add(album);
-        case AlbumType.app:
+        case .app:
           appAlbums.add(album);
         default:
           specialAlbums.add(album);
       }
     }
-    return Map.fromEntries([...specialAlbums, ...appAlbums, ...regularAlbums].map((album) => MapEntry(
+    return Map.fromEntries(
+      [...specialAlbums, ...appAlbums, ...regularAlbums].map(
+        (album) => MapEntry(
           album,
           entries.firstWhereOrNull((entry) => entry.directory == album),
-        )));
+        ),
+      ),
+    );
   }
 
   void updateDirectories() {
-    addDirectories(albums: {
-      ...visibleEntries.map((entry) => entry.directory),
-      ...vaults.all.map((v) => v.path),
-    });
+    addDirectories(
+      albums: {
+        ...visibleEntries.map((entry) => entry.directory),
+        ...vaults.all.map((v) => v.path),
+      },
+    );
     cleanEmptyAlbums();
   }
 

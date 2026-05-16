@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:aves/model/entry/entry.dart';
+import 'package:aves/services/common/channel.dart';
 import 'package:aves/services/common/decoding.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:aves/theme/text.dart';
@@ -19,16 +20,16 @@ abstract class EmbeddedDataService {
 
   Future<Map> extractVideoEmbeddedPicture(AvesEntry entry);
 
-  Future<Map> extractXmpDataProp(AvesEntry entry, List<dynamic>? props, String? propMimeType);
+  Future<Map> extractXmpDataProp(AvesEntry entry, List<Object?>? props, String? propMimeType);
 }
 
 class PlatformEmbeddedDataService implements EmbeddedDataService {
-  static const _platform = MethodChannel('deckers.thibault/aves/embedded');
+  static const _platform = AvesMethodChannel('deckers.thibault/aves/embedded');
 
   @override
   Future<List<ui.ImageDescriptor?>> getExifThumbnails(AvesEntry entry) async {
     try {
-      final result = await _platform.invokeMethod('getExifThumbnails', <String, dynamic>{
+      final result = await _platform.invokeMethod('getExifThumbnails', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
         'sizeBytes': entry.sizeBytes,
@@ -49,7 +50,7 @@ class PlatformEmbeddedDataService implements EmbeddedDataService {
   @override
   Future<Map> extractGoogleDeviceItem(AvesEntry entry, String dataUri) async {
     try {
-      final result = await _platform.invokeMethod('extractGoogleDeviceItem', <String, dynamic>{
+      final result = await _platform.invokeMethod('extractGoogleDeviceItem', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
         'sizeBytes': entry.sizeBytes,
@@ -66,7 +67,7 @@ class PlatformEmbeddedDataService implements EmbeddedDataService {
   @override
   Future<Map> extractMotionPhotoImage(AvesEntry entry) async {
     try {
-      final result = await _platform.invokeMethod('extractMotionPhotoImage', <String, dynamic>{
+      final result = await _platform.invokeMethod('extractMotionPhotoImage', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
         'sizeBytes': entry.sizeBytes,
@@ -82,7 +83,7 @@ class PlatformEmbeddedDataService implements EmbeddedDataService {
   @override
   Future<Map> extractMotionPhotoVideo(AvesEntry entry) async {
     try {
-      final result = await _platform.invokeMethod('extractMotionPhotoVideo', <String, dynamic>{
+      final result = await _platform.invokeMethod('extractMotionPhotoVideo', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
         'sizeBytes': entry.sizeBytes,
@@ -98,7 +99,7 @@ class PlatformEmbeddedDataService implements EmbeddedDataService {
   @override
   Future<Map> extractJpegMpfItem(AvesEntry entry, int id) async {
     try {
-      final result = await _platform.invokeMethod('extractJpegMpfItem', <String, dynamic>{
+      final result = await _platform.invokeMethod('extractJpegMpfItem', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
         'sizeBytes': entry.sizeBytes,
@@ -115,7 +116,7 @@ class PlatformEmbeddedDataService implements EmbeddedDataService {
   @override
   Future<Map> extractVideoEmbeddedPicture(AvesEntry entry) async {
     try {
-      final result = await _platform.invokeMethod('extractVideoEmbeddedPicture', <String, dynamic>{
+      final result = await _platform.invokeMethod('extractVideoEmbeddedPicture', <String, Object?>{
         'uri': entry.uri,
         'displayName': ['${entry.bestTitle}', 'Cover'].join(AText.separator),
       });
@@ -127,9 +128,9 @@ class PlatformEmbeddedDataService implements EmbeddedDataService {
   }
 
   @override
-  Future<Map> extractXmpDataProp(AvesEntry entry, List<dynamic>? props, String? propMimeType) async {
+  Future<Map> extractXmpDataProp(AvesEntry entry, List<Object?>? props, String? propMimeType) async {
     try {
-      final result = await _platform.invokeMethod('extractXmpDataProp', <String, dynamic>{
+      final result = await _platform.invokeMethod('extractXmpDataProp', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
         'sizeBytes': entry.sizeBytes,

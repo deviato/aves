@@ -32,12 +32,12 @@ mixin SizeAwareMixin {
     late int needed;
     int sumSize(int sum, AvesEntry entry) => sum + (entry.sizeBytes ?? 0);
     switch (moveType) {
-      case MoveType.copy:
-      case MoveType.export:
+      case .copy:
+      case .export:
         needed = selection.fold(0, sumSize);
-      case MoveType.move:
-      case MoveType.toBin:
-      case MoveType.fromBin:
+      case .move:
+      case .toBin:
+      case .fromBin:
         // when moving, we only need space for the entries that are not already on the destination volume
         final byVolume = groupBy<AvesEntry, StorageVolume?>(selection, (entry) => androidFileUtils.getStorageVolume(entry.path)).whereNotNullKey();
         final otherVolumes = byVolume.keys.where((volume) => volume != destinationVolume);
@@ -74,19 +74,13 @@ mixin SizeAwareMixin {
   }
 
   Future<void> _showNotEnoughSpaceDialog(BuildContext context, int needed, int free, StorageVolume destinationVolume) async {
-    await showDialog(
+    final locale = context.locale;
+    final neededSize = formatFileSize(locale, needed);
+    final freeSize = formatFileSize(locale, free);
+    final volume = destinationVolume.getDescription(context);
+    await showWarningDialog(
       context: context,
-      builder: (context) {
-        final locale = context.locale;
-        final neededSize = formatFileSize(locale, needed);
-        final freeSize = formatFileSize(locale, free);
-        final volume = destinationVolume.getDescription(context);
-        return AvesDialog(
-          content: Text(context.l10n.notEnoughSpaceDialogMessage(neededSize, freeSize, volume)),
-          actions: const [OkButton()],
-        );
-      },
-      routeSettings: const RouteSettings(name: AvesDialog.warningRouteName),
+      message: context.l10n.notEnoughSpaceDialogMessage(neededSize, freeSize, volume),
     );
   }
 }

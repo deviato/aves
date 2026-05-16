@@ -16,6 +16,7 @@ object MimeTypes {
     const val HEIF = "image/heif"
     private const val ICO = "image/x-icon"
     const val JPEG = "image/jpeg"
+    private const val JPEG2000 = "image/jp2"
     const val PNG = "image/png"
     const val PSD_VND = "image/vnd.adobe.photoshop"
     const val PSD_X = "image/x-photoshop"
@@ -68,7 +69,12 @@ object MimeTypes {
 
     fun isVideo(mimeType: String?) = mimeType != null && mimeType.startsWith("video")
 
-    fun isHeic(mimeType: String?) = mimeType != null && (mimeType == HEIC || mimeType == HEIF)
+    // assume that `HEIF` is a `HEIC` (using the default `HEVC` codec)
+    fun isHeic(mimeType: String?) = mimeType == HEIC || mimeType == HEIF
+
+    // `AVIF` and `HEIC` both derive from `HEIF`, which derives from `ISOBMFF`.
+    // `MP4` also derives from `ISOBMFF` but is not an image format.
+    fun isIsoBMFFImage(mimeType: String?) = mimeType == AVIF || isHeic(mimeType)
 
     fun isRaw(mimeType: String): Boolean {
         return when (mimeType) {
@@ -90,15 +96,17 @@ object MimeTypes {
         else -> false
     }
 
-    // as of `metadata-extractor` v2.14.0
+    // as of `metadata-extractor` v2.20.0
     fun canReadWithMetadataExtractor(mimeType: String?) = when (mimeType) {
-        DJVU, SVG, WBMP -> false
+        DJVU, JPEG2000, SVG, WBMP -> false
         MKV, MP2T, MP2TS, OGV, WEBM -> false
         else -> true
     }
 
-    // as of `ExifInterface` v1.4.0-alpha01, `isSupportedMimeType` reports
-    // no support for AVIF/TIFF images, but it can actually open them (maybe other formats too)
+    // as of `ExifInterface` v1.4.2, method `isSupportedMimeType` reports no support for AVIF,
+    // but documentation reports:
+    // * Supported for reading: JPEG, PNG, WebP, HEIC, DNG, CR2, NEF, NRW, ARW, RW2, ORF, PEF, SRW, RAF, AVIF (on API 31+).
+    // * Supported for writing: JPEG, PNG, WebP.
     fun canReadWithExifInterface(mimeType: String, strict: Boolean = true): Boolean {
         if (!strict) return true
         return ExifInterface.isSupportedMimeType(mimeType) || mimeType == AVIF
@@ -144,8 +152,8 @@ object MimeTypes {
         return if (pageId != null && MultiPageImage.isSupported(mimeType)) {
             true
         } else when (mimeType) {
-            AVIF, DNG, DNG_ADOBE, HEIC, HEIF, PNG, WEBP -> true
-            else -> false
+            AVIF, HEIC, HEIF, PNG, TIFF, WEBP -> true
+            else -> isRaw(mimeType)
         }
     }
 

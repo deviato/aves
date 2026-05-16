@@ -73,11 +73,11 @@ class SectionHeader<T> extends StatelessWidget {
                     sectionKey: sectionKey,
                     browsingBuilder: leading != null
                         ? (context) => Container(
-                              width: leadingSize.width,
-                              height: leadingSize.height,
-                              margin: leadingMargin,
-                              child: leading,
-                            )
+                            width: leadingSize.width,
+                            height: leadingSize.height,
+                            margin: leadingMargin,
+                            child: leading,
+                          )
                         : null,
                     onPressed: onTap,
                   ),
@@ -131,7 +131,7 @@ class SectionHeader<T> extends StatelessWidget {
     }
   }
 
-  // TODO TLAD [perf] cache header extent computation?
+  // TODO TLAD [perf] cache header extent computation? (depends on subsystems, e.g. covers for album type)
   static double getPreferredHeight({
     required BuildContext context,
     required double maxWidth,
@@ -143,6 +143,7 @@ class SectionHeader<T> extends StatelessWidget {
     final leadingFontSize = leadingSize.height;
     final textScaleFactor = textScaler.scale(leadingFontSize) / leadingFontSize;
     final maxContentWidth = maxWidth - (SectionHeader.padding.horizontal + SectionHeader.margin.horizontal);
+
     final paragraph = RenderParagraph(
       TextSpan(
         children: [
@@ -166,6 +167,7 @@ class SectionHeader<T> extends StatelessWidget {
     )..layout(BoxConstraints(maxWidth: maxContentWidth), parentUsesSize: true);
     final height = paragraph.getMaxIntrinsicHeight(maxContentWidth);
     paragraph.dispose();
+
     return height;
   }
 

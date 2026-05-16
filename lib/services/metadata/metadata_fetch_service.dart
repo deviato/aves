@@ -7,6 +7,9 @@ import 'package:aves/model/media/panorama.dart';
 import 'package:aves/model/metadata/catalog.dart';
 import 'package:aves/model/metadata/overlay.dart';
 import 'package:aves/model/multipage.dart';
+import 'package:aves/services/common/channel.dart';
+import 'package:aves/services/common/channel_isolate.dart';
+import 'package:aves/services/common/custom_exception.dart';
 import 'package:aves/services/common/service_policy.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:aves/services/metadata/xmp.dart';
@@ -39,27 +42,26 @@ abstract class MetadataFetchService {
 
   Future<DateTime?> getDate(AvesEntry entry, MetadataField field);
 
-  Future<Map<String, dynamic>> getFields(AvesEntry entry, Set<MetadataField> fields);
+  Future<Map<String, Object?>> getFields(AvesEntry entry, Set<MetadataField> fields);
 }
 
 class PlatformMetadataFetchService implements MetadataFetchService {
-  static const _platform = MethodChannel('deckers.thibault/aves/metadata_fetch');
+  static const _channel = AvesMethodChannel(AvesChannels.metadataFetch);
+  final _channelIsolate = ChannelIsolate(AvesChannels.metadataFetch);
 
   @override
   Future<Map> getAllMetadata(AvesEntry entry) async {
     if (entry.isSvg) return {};
 
     try {
-      final result = await _platform.invokeMethod('getAllMetadata', <String, dynamic>{
+      final result = await _channelIsolate.invokeMethod('getAllMetadata', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
         'sizeBytes': entry.sizeBytes,
       });
       if (result != null) return result as Map;
     } on PlatformException catch (e, stack) {
-      if (entry.isValid) {
-        await reportService.recordError(e, stack);
-      }
+      await _processPlatformException(entry, e, stack);
     }
     return {};
   }
@@ -81,19 +83,19 @@ class PlatformMetadataFetchService implements MetadataFetchService {
         // 'longitude': longitude (double)
         // 'xmpSubjects': ';' separated XMP subjects (string)
         // 'xmpTitle': XMP title (string)
-        final result = await _platform.invokeMethod('getCatalogMetadata', <String, dynamic>{
-          'mimeType': entry.mimeType,
-          'uri': entry.uri,
-          'path': entry.path,
-          'sizeBytes': entry.sizeBytes,
-        }) as Map;
+        final result =
+            await _channel.invokeMethod('getCatalogMetadata', <String, Object?>{
+                  'mimeType': entry.mimeType,
+                  'uri': entry.uri,
+                  'path': entry.path,
+                  'sizeBytes': entry.sizeBytes,
+                })
+                as Map;
         result['id'] = entry.id;
         AvesEntry.normalizeMimeTypeFields(result);
         return CatalogMetadata.fromMap(result);
       } on PlatformException catch (e, stack) {
-        if (entry.isValid) {
-          await reportService.recordError(e, stack);
-        }
+        await _processPlatformException(entry, e, stack);
       }
       return null;
     }
@@ -116,17 +118,17 @@ class PlatformMetadataFetchService implements MetadataFetchService {
         // 'exposureTime' (string),
         // 'focalLength' (double),
         // 'iso' (int),
-        final result = await _platform.invokeMethod('getOverlayMetadata', <String, dynamic>{
-          'mimeType': entry.mimeType,
-          'uri': entry.uri,
-          'sizeBytes': entry.sizeBytes,
-          'fields': fields.map((v) => v.toPlatform).toList(),
-        }) as Map;
+        final result =
+            await _channel.invokeMethod('getOverlayMetadata', <String, Object?>{
+                  'mimeType': entry.mimeType,
+                  'uri': entry.uri,
+                  'sizeBytes': entry.sizeBytes,
+                  'fields': fields.map((v) => v.toPlatform).toList(),
+                })
+                as Map;
         return OverlayMetadata.fromMap(result);
       } on PlatformException catch (e, stack) {
-        if (entry.isValid) {
-          await reportService.recordError(e, stack);
-        }
+        await _processPlatformException(entry, e, stack);
       }
     }
     return const OverlayMetadata();
@@ -135,16 +137,16 @@ class PlatformMetadataFetchService implements MetadataFetchService {
   @override
   Future<GeoTiffInfo?> getGeoTiffInfo(AvesEntry entry) async {
     try {
-      final result = await _platform.invokeMethod('getGeoTiffInfo', <String, dynamic>{
-        'mimeType': entry.mimeType,
-        'uri': entry.uri,
-        'sizeBytes': entry.sizeBytes,
-      }) as Map;
+      final result =
+          await _channel.invokeMethod('getGeoTiffInfo', <String, Object?>{
+                'mimeType': entry.mimeType,
+                'uri': entry.uri,
+                'sizeBytes': entry.sizeBytes,
+              })
+              as Map;
       return GeoTiffInfo.fromMap(result);
     } on PlatformException catch (e, stack) {
-      if (entry.isValid) {
-        await reportService.recordError(e, stack);
-      }
+      await _processPlatformException(entry, e, stack);
     }
     return null;
   }
@@ -152,7 +154,7 @@ class PlatformMetadataFetchService implements MetadataFetchService {
   @override
   Future<MultiPageInfo?> getMultiPageInfo(AvesEntry entry) async {
     try {
-      final result = await _platform.invokeMethod('getMultiPageInfo', <String, dynamic>{
+      final result = await _channel.invokeMethod('getMultiPageInfo', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
         'sizeBytes': entry.sizeBytes,
@@ -168,8 +170,8 @@ class PlatformMetadataFetchService implements MetadataFetchService {
       pageMaps.forEach(AvesEntry.normalizeMimeTypeFields);
       return MultiPageInfo.fromPageMaps(entry, pageMaps);
     } on PlatformException catch (e, stack) {
-      if (entry.isValid) {
-        await reportService.recordError(e, stack);
+      if (e.code != 'getMultiPageInfo-empty') {
+        await _processPlatformException(entry, e, stack);
       }
     }
     return null;
@@ -181,16 +183,16 @@ class PlatformMetadataFetchService implements MetadataFetchService {
       // returns map with values for:
       // 'croppedAreaLeft' (int), 'croppedAreaTop' (int), 'croppedAreaWidth' (int), 'croppedAreaHeight' (int),
       // 'fullPanoWidth' (int), 'fullPanoHeight' (int)
-      final result = await _platform.invokeMethod('getPanoramaInfo', <String, dynamic>{
-        'mimeType': entry.mimeType,
-        'uri': entry.uri,
-        'sizeBytes': entry.sizeBytes,
-      }) as Map;
+      final result =
+          await _channel.invokeMethod('getPanoramaInfo', <String, Object?>{
+                'mimeType': entry.mimeType,
+                'uri': entry.uri,
+                'sizeBytes': entry.sizeBytes,
+              })
+              as Map;
       return PanoramaInfo.fromMap(result);
     } on PlatformException catch (e, stack) {
-      if (entry.isValid) {
-        await reportService.recordError(e, stack);
-      }
+      await _processPlatformException(entry, e, stack);
     }
     return null;
   }
@@ -198,15 +200,13 @@ class PlatformMetadataFetchService implements MetadataFetchService {
   @override
   Future<List<Map<String, dynamic>>?> getIptc(AvesEntry entry) async {
     try {
-      final result = await _platform.invokeMethod('getIptc', <String, dynamic>{
+      final result = await _channel.invokeMethod('getIptc', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
       });
       if (result != null) return (result as List).cast<Map>().map((fields) => fields.cast<String, dynamic>()).toList();
     } on PlatformException catch (e, stack) {
-      if (entry.isValid) {
-        await reportService.recordError(e, stack);
-      }
+      await _processPlatformException(entry, e, stack);
     }
     return null;
   }
@@ -214,16 +214,14 @@ class PlatformMetadataFetchService implements MetadataFetchService {
   @override
   Future<AvesXmp?> getXmp(AvesEntry entry) async {
     try {
-      final result = await _platform.invokeMethod('getXmp', <String, dynamic>{
+      final result = await _channel.invokeMethod('getXmp', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
         'sizeBytes': entry.sizeBytes,
       });
       if (result != null) return AvesXmp.fromList((result as List).cast<String>());
     } on PlatformException catch (e, stack) {
-      if (entry.isValid) {
-        await reportService.recordError(e, stack);
-      }
+      await _processPlatformException(entry, e, stack);
     }
     return null;
   }
@@ -236,7 +234,7 @@ class PlatformMetadataFetchService implements MetadataFetchService {
     if (exists != null) return SynchronousFuture(exists);
 
     try {
-      exists = await _platform.invokeMethod('hasContentResolverProp', <String, dynamic>{
+      exists = await _channel.invokeMethod('hasContentResolverProp', <String, Object?>{
         'prop': prop,
       });
     } on PlatformException catch (e, stack) {
@@ -250,15 +248,14 @@ class PlatformMetadataFetchService implements MetadataFetchService {
   @override
   Future<String?> getContentResolverProp(AvesEntry entry, String prop) async {
     try {
-      return await _platform.invokeMethod('getContentResolverProp', <String, dynamic>{
+      final result = await _channelIsolate.invokeMethod('getContentResolverProp', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
         'prop': prop,
       });
+      if (result != null) return result as String;
     } on PlatformException catch (e, stack) {
-      if (entry.isValid) {
-        await reportService.recordError(e, stack);
-      }
+      await _processPlatformException(entry, e, stack);
     }
     return null;
   }
@@ -266,7 +263,7 @@ class PlatformMetadataFetchService implements MetadataFetchService {
   @override
   Future<DateTime?> getDate(AvesEntry entry, MetadataField field) async {
     try {
-      final result = await _platform.invokeMethod('getDate', <String, dynamic>{
+      final result = await _channel.invokeMethod('getDate', <String, Object?>{
         'mimeType': entry.mimeType,
         'uri': entry.uri,
         'sizeBytes': entry.sizeBytes,
@@ -276,30 +273,46 @@ class PlatformMetadataFetchService implements MetadataFetchService {
         return dateTimeFromMillis(result, isUtc: false);
       }
     } on PlatformException catch (e, stack) {
-      if (entry.isValid) {
-        await reportService.recordError(e, stack);
-      }
+      await _processPlatformException(entry, e, stack);
     }
     return null;
   }
 
   @override
-  Future<Map<String, dynamic>> getFields(AvesEntry entry, Set<MetadataField> fields) async {
+  Future<Map<String, Object?>> getFields(AvesEntry entry, Set<MetadataField> fields) async {
     if (fields.isNotEmpty && !entry.isSvg) {
       try {
-        final result = await _platform.invokeMethod('getFields', <String, dynamic>{
+        final result = await _channel.invokeMethod('getFields', <String, Object?>{
           'mimeType': entry.mimeType,
           'uri': entry.uri,
           'sizeBytes': entry.sizeBytes,
           'fields': fields.map((v) => v.toPlatform).toList(),
         });
-        if (result != null) return (result as Map).cast<String, dynamic>();
+        if (result is Map) return result.cast<String, Object?>();
       } on PlatformException catch (e, stack) {
-        if (entry.isValid) {
-          await reportService.recordError(e, stack);
-        }
+        await _processPlatformException(entry, e, stack);
       }
     }
     return {};
+  }
+
+  Future<void> _processPlatformException(AvesEntry entry, PlatformException e, StackTrace stack) async {
+    if (entry.isValid) {
+      final code = e.code;
+      final customException = CustomPlatformException.fromStandard(e);
+      if (code.endsWith('filenotfound')) {
+        await fileNotFound(customException);
+      } else {
+        await reportService.recordError(e, stack);
+      }
+    }
+  }
+
+  // distinct exceptions to convince Crashlytics to split reports into distinct issues
+  // The distinct debug statement is there to make the body unique, so that the methods are not merged at compile time.
+
+  Future<void> fileNotFound(CustomPlatformException e) {
+    debugPrint('fileNotFound $e');
+    return reportService.recordError(e);
   }
 }

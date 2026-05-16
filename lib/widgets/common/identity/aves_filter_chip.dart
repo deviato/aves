@@ -96,52 +96,63 @@ class AvesFilterChip extends StatefulWidget {
     return (mqWidth - mqHorizontalPadding - chipPadding * minChipPerRow - rowPadding) / minChipPerRow;
   }
 
-  static Future<void> showDefaultLongPressMenu(BuildContext context, CollectionFilter filter, Offset tapPosition) async {
-    if (context.read<ValueNotifier<AppMode>>().value.canNavigate) {
-      // remove focus, if any, to prevent the keyboard from showing up
-      // after the user is done with the popup menu
-      FocusManager.instance.primaryFocus?.unfocus();
+  static Future<void> showDefaultLongPressMenu(
+    BuildContext context,
+    CollectionFilter filter,
+    Offset tapPosition, {
+    bool? canNavigate,
+  }) async {
+    // remove focus, if any, to prevent the keyboard from showing up
+    // after the user is done with the popup menu
+    FocusManager.instance.primaryFocus?.unfocus();
 
-      final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-      const touchArea = Size(kMinInteractiveDimension, kMinInteractiveDimension);
-      final actionDelegate = ChipActionDelegate();
-      final animations = context.read<Settings>().accessibilityAnimations;
-
-      final selectedAction = await showMenu<ChipAction>(
-        context: context,
-        position: RelativeRect.fromRect(tapPosition & touchArea, Offset.zero & overlay.size),
-        items: [
-          PopupMenuItem(
-            child: Text(filter.getTooltip(context)),
-          ),
-          const PopupMenuDivider(),
-          ...ChipAction.values.where((action) => actionDelegate.isVisible(action, filter: filter)).map((action) {
-            late String text;
-            switch (action) {
-              case ChipAction.reverse:
-                text = filter.reversed ? context.l10n.chipActionFilterIn : context.l10n.chipActionFilterOut;
-              case ChipAction.ratingOrGreater:
-                text = RatingFilter.formatRatingRange(context, (filter as RatingFilter).rating, RatingFilter.opOrGreater);
-              case ChipAction.ratingOrLower:
-                text = RatingFilter.formatRatingRange(context, (filter as RatingFilter).rating, RatingFilter.opOrLower);
-              default:
-                text = action.getText(context);
-            }
-            return PopupMenuItem(
-              value: action,
-              child: FontSizeIconTheme(
-                child: MenuRow(text: text, icon: action.getIcon()),
-              ),
-            );
-          }),
-        ],
-        popUpAnimationStyle: animations.popUpAnimationStyle,
+    final actions = <PopupMenuItem<ChipAction>>[];
+    final actionDelegate = ChipActionDelegate();
+    if (canNavigate ?? context.read<ValueNotifier<AppMode>>().value.canNavigate) {
+      actions.addAll(
+        ChipAction.values.where((action) => actionDelegate.isVisible(action, filter: filter)).map((action) {
+          late String text;
+          switch (action) {
+            case .reverse:
+              text = filter.reversed ? context.l10n.chipActionFilterIn : context.l10n.chipActionFilterOut;
+            case .ratingOrGreater:
+              text = RatingFilter.formatRatingRange(context, (filter as RatingFilter).rating, RatingFilter.opOrGreater);
+            case .ratingOrLower:
+              text = RatingFilter.formatRatingRange(context, (filter as RatingFilter).rating, RatingFilter.opOrLower);
+            default:
+              text = action.getText(context);
+          }
+          return PopupMenuItem(
+            value: action,
+            child: FontSizeIconTheme(
+              child: MenuRow(text: text, icon: action.getIcon()),
+            ),
+          );
+        }),
       );
-      if (selectedAction != null) {
-        // wait for the popup menu to hide before proceeding with the action
-        await Future.delayed(animations.popUpAnimationDelay * timeDilation);
-        actionDelegate.onActionSelected(context, filter, selectedAction);
-      }
+    }
+
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    const touchArea = Size(kMinInteractiveDimension, kMinInteractiveDimension);
+    final animations = context.read<Settings>().accessibilityAnimations;
+    final selectedAction = await showMenu<ChipAction>(
+      context: context,
+      position: RelativeRect.fromRect(tapPosition & touchArea, Offset.zero & overlay.size),
+      items: [
+        PopupMenuItem(
+          child: Text(filter.getTooltip(context)),
+        ),
+        if (actions.isNotEmpty) ...[
+          const PopupMenuDivider(),
+          ...actions,
+        ],
+      ],
+      popUpAnimationStyle: animations.popUpAnimationStyle,
+    );
+    if (selectedAction != null) {
+      // wait for the popup menu to hide before proceeding with the action
+      await Future.delayed(animations.popUpAnimationDelay * timeDilation);
+      actionDelegate.onActionSelected(context, filter, selectedAction);
     }
   }
 
@@ -151,7 +162,6 @@ class AvesFilterChip extends StatefulWidget {
 
 class _AvesFilterChipState extends State<AvesFilterChip> {
   final Set<StreamSubscription> _subscriptions = {};
-  late Future<Color> _colorFuture;
   late Color _outlineColor;
   late bool _tapped;
   Offset? _tapPosition;
@@ -166,13 +176,15 @@ class _AvesFilterChipState extends State<AvesFilterChip> {
     _tapped = false;
     _subscriptions.add(covers.packageChangeStream.listen(_onCoverColorChanged));
     _subscriptions.add(covers.colorChangeStream.listen(_onCoverColorChanged));
-    _subscriptions.add(settings.updateStream.where((event) => event.key == SettingKeys.themeColorModeKey).listen((_) {
-      // delay so that contextual colors reflect the new settings
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _onCoverColorChanged(null);
-      });
-    }));
+    _subscriptions.add(
+      settings.updateStream.where((event) => event.key == SettingKeys.themeColorModeKey).listen((_) {
+        // delay so that contextual colors reflect the new settings
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _onCoverColorChanged(null);
+        });
+      }),
+    );
   }
 
   @override
@@ -199,13 +211,6 @@ class _AvesFilterChipState extends State<AvesFilterChip> {
   }
 
   void _initColorLoader() {
-    // For app albums, `filter.color` yields a regular async `Future` the first time
-    // but it yields a `SynchronousFuture` when called again on a known album.
-    // This works fine to avoid a frame with no Future data, for new widgets.
-    // However, when the user moves away and back to a page with a chip using the async future,
-    // the existing widget FutureBuilder cycles again from the start, with a frame in `waiting` state and no data.
-    // So we save the result of the Future to a local variable because of this specific case.
-    _colorFuture = filter.color(context);
     _outlineColor = context.read<AvesColorsData>().neutral;
   }
 
@@ -267,7 +272,7 @@ class _AvesFilterChipState extends State<AvesFilterChip> {
         mainAxisSize: decoration != null ? MainAxisSize.max : MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          if (leading != null) leading,
+          ?leading,
           if (leading != null && showText) SizedBox(width: padding),
           if (showText)
             Flexible(
@@ -327,14 +332,15 @@ class _AvesFilterChipState extends State<AvesFilterChip> {
       constraints: BoxConstraints(
         minWidth: AvesFilterChip.minChipWidth,
         maxWidth: max(
-            AvesFilterChip.minChipWidth,
-            widget.maxWidth ??
-                AvesFilterChip.computeMaxWidthForRow(
-                  context,
-                  minChipPerRow: 2,
-                  chipPadding: FilterBar.chipPadding.horizontal,
-                  rowPadding: FilterBar.rowPadding.horizontal,
-                )),
+          AvesFilterChip.minChipWidth,
+          widget.maxWidth ??
+              AvesFilterChip.computeMaxWidthForRow(
+                context,
+                minChipPerRow: 2,
+                chipPadding: FilterBar.chipPadding.horizontal,
+                rowPadding: FilterBar.rowPadding.horizontal,
+              ),
+        ),
         minHeight: AvesFilterChip.minChipHeight,
       ),
       child: Stack(
@@ -361,17 +367,19 @@ class _AvesFilterChipState extends State<AvesFilterChip> {
               borderRadius: borderRadius,
               longPressTimeout: settings.longPressTimeout,
               child: FutureBuilder<Color>(
-                future: _colorFuture,
+                future: filter.color(context),
                 builder: (context, snapshot) {
                   if (snapshot.hasData) {
                     _outlineColor = snapshot.data!;
                   }
                   return DecoratedBox(
                     decoration: BoxDecoration(
-                      border: Border.fromBorderSide(BorderSide(
-                        color: widget.useFilterColor ? _outlineColor : context.select<AvesColorsData, Color>((v) => v.neutral),
-                        width: AvesFilterChip.outlineWidth,
-                      )),
+                      border: Border.fromBorderSide(
+                        BorderSide(
+                          color: widget.useFilterColor ? _outlineColor : context.select<AvesColorsData, Color>((v) => v.neutral),
+                          width: AvesFilterChip.outlineWidth,
+                        ),
+                      ),
                       borderRadius: borderRadius,
                     ),
                     position: DecorationPosition.foreground,
@@ -384,13 +392,14 @@ class _AvesFilterChipState extends State<AvesFilterChip> {
           if (banner != null)
             LayoutBuilder(
               builder: (context, constraints) {
+                final scale = (constraints.maxHeight / 90 - .4).clamp(.45, 1.0);
                 return ClipRRect(
                   borderRadius: borderRadius,
                   child: Align(
                     // align to corner the scaled down banner in RTL
                     alignment: AlignmentDirectional.topStart,
                     child: Transform(
-                      transform: Matrix4.identity().scaled((constraints.maxHeight / 90 - .4).clamp(.45, 1.0)),
+                      transform: Matrix4.identity().scaledByDouble(scale, scale, scale, 1),
                       child: Banner(
                         message: banner.toUpperCase(),
                         location: BannerLocation.topStart,

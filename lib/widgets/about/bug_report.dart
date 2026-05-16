@@ -3,9 +3,9 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:aves/app_flavor.dart';
-import 'package:aves/flutter_version.dart';
 import 'package:aves/model/device.dart';
 import 'package:aves/model/settings/settings.dart';
+import 'package:aves/model/source/collection_source.dart';
 import 'package:aves/ref/locales.dart';
 import 'package:aves/ref/mime_types.dart';
 import 'package:aves/services/common/services.dart';
@@ -20,6 +20,7 @@ import 'package:aves/widgets/common/extensions/build_context.dart';
 import 'package:aves/widgets/common/fx/borders.dart';
 import 'package:aves/widgets/common/identity/aves_filter_chip.dart';
 import 'package:aves/widgets/common/identity/buttons/outlined_button.dart';
+import 'package:aves/widgets/settings/app_export/items.dart';
 import 'package:aves_model/aves_model.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -78,7 +79,7 @@ class BugReportContent extends StatefulWidget {
 
 class _BugReportContentState extends State<BugReportContent> with FeedbackMixin {
   late Future<String> _infoLoader;
-  static const bugReportUrl = '${AppReference.avesGithub}/issues/new?labels=type%3Abug&template=bug_report.md';
+  static const bugReportUrl = '${AppReference.avesGithub}/issues/new?labels=type%3Abug&template=bug_report.yml';
 
   @override
   void initState() {
@@ -144,10 +145,12 @@ class _BugReportContentState extends State<BugReportContent> with FeedbackMixin 
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              border: Border.fromBorderSide(BorderSide(
-                color: isMonochrome ? context.select<AvesColorsData, Color>((v) => v.neutral) : Theme.of(context).colorScheme.primary,
-                width: AvesFilterChip.outlineWidth,
-              )),
+              border: Border.fromBorderSide(
+                BorderSide(
+                  color: isMonochrome ? context.select<AvesColorsData, Color>((v) => v.neutral) : Theme.of(context).colorScheme.primary,
+                  width: AvesFilterChip.outlineWidth,
+                ),
+              ),
               shape: BoxShape.circle,
             ),
             child: Text(NumberFormat('0', context.locale).format(step)),
@@ -175,11 +178,12 @@ class _BugReportContentState extends State<BugReportContent> with FeedbackMixin 
     final connections = await Connectivity().checkConnectivity();
     final storageVolumes = await storageService.getStorageVolumes();
     final storageGrants = await storageService.getGrantedDirectories();
+    final source = context.read<CollectionSource>();
     return [
       'Package: ${device.packageName}',
       'Installer: ${packageInfo.installerStore}',
       'Aves version: ${device.packageVersion}-$flavor, build ${packageInfo.buildNumber}',
-      'Flutter: ${version['channel']} ${version['frameworkVersion']}',
+      'Flutter: ${FlutterVersion.channel} ${FlutterVersion.version}',
       'Android version: ${androidInfo.version.release}, API ${androidInfo.version.sdkInt}',
       'Android build: ${androidInfo.display}',
       'Device: ${androidInfo.manufacturer} ${androidInfo.model}',
@@ -191,14 +195,23 @@ class _BugReportContentState extends State<BugReportContent> with FeedbackMixin 
       'Storage volumes: ${storageVolumes.map((v) => v.path).join(', ')}',
       'Storage grants: ${storageGrants.join(', ')}',
       'Error reporting: ${settings.isErrorReportingAllowed}',
+      'Collection: ${source.allEntries.length} items, ${source.rawAlbums.length} albums, ${source.sortedTags.length} tags',
     ].join('\n');
   }
 
   Future<void> _saveLogs() async {
-    final result = await Process.run('logcat', ['-d']);
-    final logs = result.stdout;
+    final contentInfo = await _infoLoader;
+    final contentSettings = const JsonEncoder.withIndent('  ').convert(AppExportItem.settings.export(context.read<CollectionSource>()));
+    final contentLog = (await Process.run('logcat', ['-d'])).stdout as String;
+
+    final logs = [
+      contentInfo,
+      contentSettings,
+      contentLog,
+    ].join('\n--------------------------------------------------------------------------------\n');
+
     final success = await storageService.createFile(
-      'aves-logs-${DateFormat('yyyyMMdd_HHmmss', asciiLocale).format(DateTime.now())}.txt',
+      'aves-logs-${DateFormat('yyyyMMdd_HHmmss', kAsciiLocale).format(DateTime.now())}.txt',
       MimeTypes.plainText,
       Uint8List.fromList(utf8.encode(logs)),
     );

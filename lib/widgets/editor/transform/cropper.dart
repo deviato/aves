@@ -221,12 +221,12 @@ class _CropperState extends State<Cropper> with SingleTickerProviderStateMixin {
   // use 1 painter per line so that the dashes of one line
   // do not get offset depending on the previous line length
   Widget _buildDashLine(List<Offset> points) => CustomPaint(
-        painter: DashedPathPainter(
-          originalPath: Path()..addPolygon(points, false),
-          pathColor: CropperPainter.borderColor,
-          strokeWidth: CropperPainter.borderWidth,
-        ),
-      );
+    painter: DashedPathPainter(
+      originalPath: Path()..addPolygon(points, false),
+      pathColor: CropperPainter.borderColor,
+      strokeWidth: CropperPainter.borderWidth,
+    ),
+  );
 
   void _handleOutline({
     double? left,
@@ -401,12 +401,12 @@ class _CropperState extends State<Cropper> with SingleTickerProviderStateMixin {
 
   void _onTransformActivity(TransformActivity activity) {
     switch (activity) {
-      case TransformActivity.none:
+      case .none:
         _showRegion();
-      case TransformActivity.pan:
-      case TransformActivity.resize:
+      case .pan:
+      case .resize:
         _gridDivisionNotifier.value = panResizeGridDivision;
-      case TransformActivity.straighten:
+      case .straighten:
         _gridDivisionNotifier.value = straightenGridDivision;
     }
     if (activity == TransformActivity.none) {
@@ -438,13 +438,13 @@ class _CropperState extends State<Cropper> with SingleTickerProviderStateMixin {
 
   void _onViewStateChanged(MagnifierState state) {
     switch (transformController.activity) {
-      case TransformActivity.none:
+      case .none:
         break;
-      case TransformActivity.straighten:
-      case TransformActivity.pan:
+      case .straighten:
+      case .pan:
         final currentOutline = _outlineNotifier.value;
         _setOutline(_applyCropRatioToOutline(currentOutline, _RatioStrategy.contain));
-      case TransformActivity.resize:
+      case .resize:
         break;
     }
   }
@@ -520,10 +520,12 @@ class _CropperState extends State<Cropper> with SingleTickerProviderStateMixin {
       final edgeOutlineCorners = edgeRegionCorners.map(regionToOutlineMatrix.transformOffset).toSet();
       if (edgeOutlineCorners.isNotEmpty) {
         final direction = edgeOutlineCorners.map((v) => newOutline.center - v).reduce((prev, v) => prev + v);
-        final movedOutline = targetOutline.shift(Offset(
-          outlineWidthDelta * direction.dx.sign,
-          outlineHeightDelta * direction.dy.sign,
-        ));
+        final movedOutline = targetOutline.shift(
+          Offset(
+            outlineWidthDelta * direction.dx.sign,
+            outlineHeightDelta * direction.dy.sign,
+          ),
+        );
         targetRegion = _regionFromOutline(viewState, movedOutline);
         newOutline = _containedOutlineFromRegion(viewState, targetRegion);
       }
@@ -539,12 +541,12 @@ class _CropperState extends State<Cropper> with SingleTickerProviderStateMixin {
 
     _outlineNotifier.value = newOutline;
     switch (transformController.activity) {
-      case TransformActivity.pan:
-      case TransformActivity.resize:
+      case .pan:
+      case .resize:
         _updateCropRegion();
         break;
-      case TransformActivity.none:
-      case TransformActivity.straighten:
+      case .none:
+      case .straighten:
         break;
     }
   }
@@ -563,9 +565,9 @@ class _CropperState extends State<Cropper> with SingleTickerProviderStateMixin {
     final viewportCenter = viewState.viewportSize!.center(Offset.zero);
     final transformOrigin = Matrix4.inverted(magnifierMatrix).transformOffset(viewportCenter);
     final transformMatrix = Matrix4.identity()
-      ..translate(transformOrigin.dx, transformOrigin.dy)
+      ..translateByDouble(transformOrigin.dx, transformOrigin.dy, 0, 1)
       ..multiply(transformation.matrix)
-      ..translate(-transformOrigin.dx, -transformOrigin.dy);
+      ..translateByDouble(-transformOrigin.dx, -transformOrigin.dy, 0, 1);
 
     return magnifierMatrix..multiply(transformMatrix);
   }
@@ -618,18 +620,18 @@ class _CropperState extends State<Cropper> with SingleTickerProviderStateMixin {
     late int longCoef;
     late int shortCoef;
     switch (cropAspectRatio) {
-      case CropAspectRatio.free:
+      case .free:
         return outline;
-      case CropAspectRatio.original:
+      case .original:
         longCoef = contentSize.longestSide.round();
         shortCoef = contentSize.shortestSide.round();
-      case CropAspectRatio.square:
+      case .square:
         longCoef = 1;
         shortCoef = 1;
-      case CropAspectRatio.ar_16_9:
+      case .ar_16_9:
         longCoef = 16;
         shortCoef = 9;
-      case CropAspectRatio.ar_4_3:
+      case .ar_4_3:
         longCoef = 4;
         shortCoef = 3;
     }
@@ -690,14 +692,14 @@ class _CropperState extends State<Cropper> with SingleTickerProviderStateMixin {
     }
 
     switch (strategy) {
-      case _RatioStrategy.keepArea:
+      case .keepArea:
         final targetSize = sizeToKeepArea();
         return Rect.fromCenter(
           center: outline.center,
           width: targetSize.width,
           height: targetSize.height,
         );
-      case _RatioStrategy.contain:
+      case .contain:
         final currentRatio = outline.width / outline.height;
         if ((newRatio - currentRatio).abs() < precisionErrorTolerance) {
           return outline;
@@ -714,54 +716,70 @@ class _CropperState extends State<Cropper> with SingleTickerProviderStateMixin {
             height: targetSize.height,
           );
         }
-      case _RatioStrategy.pinTopLeft:
-        return pinnedRect((targetSize) => Rect.fromPoints(
-              outline.topLeft,
-              outline.topLeft.translate(targetSize.width, targetSize.height),
-            ));
-      case _RatioStrategy.pinTopRight:
-        return pinnedRect((targetSize) => Rect.fromPoints(
-              outline.topRight,
-              outline.topRight.translate(-targetSize.width, targetSize.height),
-            ));
-      case _RatioStrategy.pinBottomRight:
-        return pinnedRect((targetSize) => Rect.fromPoints(
-              outline.bottomRight,
-              outline.bottomRight.translate(-targetSize.width, -targetSize.height),
-            ));
-      case _RatioStrategy.pinBottomLeft:
-        return pinnedRect((targetSize) => Rect.fromPoints(
-              outline.bottomLeft,
-              outline.bottomLeft.translate(targetSize.width, -targetSize.height),
-            ));
-      case _RatioStrategy.pinLeft:
-        return pinnedRect((targetSize) => Rect.fromLTRB(
-              outline.left,
-              outline.center.dy - targetSize.height / 2,
-              outline.left + targetSize.width,
-              outline.center.dy + targetSize.height / 2,
-            ));
-      case _RatioStrategy.pinTop:
-        return pinnedRect((targetSize) => Rect.fromLTRB(
-              outline.center.dx - targetSize.width / 2,
-              outline.top,
-              outline.center.dx + targetSize.width / 2,
-              outline.top + targetSize.height,
-            ));
-      case _RatioStrategy.pinRight:
-        return pinnedRect((targetSize) => Rect.fromLTRB(
-              outline.right - targetSize.width,
-              outline.center.dy - targetSize.height / 2,
-              outline.right,
-              outline.center.dy + targetSize.height / 2,
-            ));
-      case _RatioStrategy.pinBottom:
-        return pinnedRect((targetSize) => Rect.fromLTRB(
-              outline.center.dx - targetSize.width / 2,
-              outline.bottom - targetSize.height,
-              outline.center.dx + targetSize.width / 2,
-              outline.bottom,
-            ));
+      case .pinTopLeft:
+        return pinnedRect(
+          (targetSize) => Rect.fromPoints(
+            outline.topLeft,
+            outline.topLeft.translate(targetSize.width, targetSize.height),
+          ),
+        );
+      case .pinTopRight:
+        return pinnedRect(
+          (targetSize) => Rect.fromPoints(
+            outline.topRight,
+            outline.topRight.translate(-targetSize.width, targetSize.height),
+          ),
+        );
+      case .pinBottomRight:
+        return pinnedRect(
+          (targetSize) => Rect.fromPoints(
+            outline.bottomRight,
+            outline.bottomRight.translate(-targetSize.width, -targetSize.height),
+          ),
+        );
+      case .pinBottomLeft:
+        return pinnedRect(
+          (targetSize) => Rect.fromPoints(
+            outline.bottomLeft,
+            outline.bottomLeft.translate(targetSize.width, -targetSize.height),
+          ),
+        );
+      case .pinLeft:
+        return pinnedRect(
+          (targetSize) => Rect.fromLTRB(
+            outline.left,
+            outline.center.dy - targetSize.height / 2,
+            outline.left + targetSize.width,
+            outline.center.dy + targetSize.height / 2,
+          ),
+        );
+      case .pinTop:
+        return pinnedRect(
+          (targetSize) => Rect.fromLTRB(
+            outline.center.dx - targetSize.width / 2,
+            outline.top,
+            outline.center.dx + targetSize.width / 2,
+            outline.top + targetSize.height,
+          ),
+        );
+      case .pinRight:
+        return pinnedRect(
+          (targetSize) => Rect.fromLTRB(
+            outline.right - targetSize.width,
+            outline.center.dy - targetSize.height / 2,
+            outline.right,
+            outline.center.dy + targetSize.height / 2,
+          ),
+        );
+      case .pinBottom:
+        return pinnedRect(
+          (targetSize) => Rect.fromLTRB(
+            outline.center.dx - targetSize.width / 2,
+            outline.bottom - targetSize.height,
+            outline.center.dx + targetSize.width / 2,
+            outline.bottom,
+          ),
+        );
     }
   }
 }

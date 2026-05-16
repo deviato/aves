@@ -52,11 +52,11 @@ class AlbumListPage extends StatelessWidget {
               return !(eq.equals(t1.$1, t2.$1) && eq.equals(t1.$2, t2.$2) && eq.equals(t1.$3, t2.$3) && eq.equals(t1.$4, t2.$4) && eq.equals(t1.$5, t2.$5));
             },
             builder: (context, s, child) {
-              return ValueListenableBuilder<bool>(
-                valueListenable: appInventory.areAppNamesReadyNotifier,
-                builder: (context, areAppNamesReady, child) {
-                  return AnimatedBuilder(
-                    animation: Listenable.merge({albumGrouping, dynamicAlbums}),
+              return ListenableBuilder(
+                listenable: appInventory.areAppNamesReadyNotifier,
+                builder: (context, child) {
+                  return ListenableBuilder(
+                    listenable: Listenable.merge({albumGrouping, dynamicAlbums}),
                     builder: (context, child) => StreamBuilder(
                       stream: source.eventBus.on<AlbumsChangedEvent>(),
                       builder: (context, snapshot) {
@@ -108,7 +108,9 @@ class AlbumListPage extends StatelessWidget {
       };
     }
 
-    final hiddenFilters = settings.hiddenFilters;
+    // show hidden filters when they are pinned
+    final pinned = settings.pinnedFilters.whereType<AlbumBaseFilter>();
+    final hidden = settings.hiddenFilters.whereNot(pinned.contains).toSet();
 
     final listedStoredAlbumPaths = <String>{};
     if (albumChipTypes.contains(AlbumChipType.stored)) {
@@ -121,11 +123,11 @@ class AlbumListPage extends StatelessWidget {
         listedStoredAlbumPaths.addAll(groupContent.whereType<StoredAlbumFilter>().map((v) => v.album).where(allAlbums.contains));
       }
     }
-    final listedStoredAlbums = listedStoredAlbumPaths.map((album) => StoredAlbumFilter(album, source.getStoredAlbumDisplayName(context, album))).whereNot(hiddenFilters.contains).toSet();
+    final listedStoredAlbums = listedStoredAlbumPaths.map((album) => StoredAlbumFilter(album, source.getStoredAlbumDisplayName(context, album))).whereNot(hidden.contains).toSet();
 
     final listedDynamicAlbums = <DynamicAlbumFilter>{};
     if (albumChipTypes.contains(AlbumChipType.dynamic)) {
-      final allDynamicAlbums = dynamicAlbums.all.whereNot(hiddenFilters.contains).toSet();
+      final allDynamicAlbums = dynamicAlbums.all.whereNot(hidden.contains).toSet();
       if (groupUri == null) {
         final withinGroups = whereTypeRecursively<DynamicAlbumFilter>(groupContent).toSet();
         listedDynamicAlbums.addAll(allDynamicAlbums.whereNot(withinGroups.contains));
@@ -136,7 +138,7 @@ class AlbumListPage extends StatelessWidget {
     }
 
     // always show groups, which are needed to navigate to other types
-    final albumGroupFilters = groupContent.whereType<AlbumGroupFilter>().whereNot(hiddenFilters.contains).toSet();
+    final albumGroupFilters = groupContent.whereType<AlbumGroupFilter>().whereNot(hidden.contains).toSet();
 
     final filters = <AlbumBaseFilter>{
       ...albumGroupFilters,
@@ -165,7 +167,7 @@ class AlbumListPage extends StatelessWidget {
 
     var sections = <ChipSectionKey, List<FilterGridItem<AlbumBaseFilter>>>{};
     switch (settings.albumSectionFactor) {
-      case AlbumChipSectionFactor.importance:
+      case .importance:
         final groupKey = AlbumImportanceSectionKey.group(context);
         final specialKey = AlbumImportanceSectionKey.special(context);
         final appsKey = AlbumImportanceSectionKey.apps(context);
@@ -177,11 +179,11 @@ class AlbumListPage extends StatelessWidget {
           switch (filter) {
             case StoredAlbumFilter _:
               switch (covers.effectiveAlbumType(filter.album)) {
-                case AlbumType.regular:
+                case .regular:
                   return regularKey;
-                case AlbumType.app:
+                case .app:
                   return appsKey;
-                case AlbumType.vault:
+                case .vault:
                   return vaultKey;
                 default:
                   return specialKey;
@@ -203,7 +205,7 @@ class AlbumListPage extends StatelessWidget {
           if (sections.containsKey(dynamicKey)) dynamicKey: sections[dynamicKey]!,
           if (sections.containsKey(regularKey)) regularKey: sections[regularKey]!,
         };
-      case AlbumChipSectionFactor.mimeType:
+      case .mimeType:
         final visibleEntries = source.visibleEntries;
         sections = groupBy<FilterGridItem<AlbumBaseFilter>, ChipSectionKey>(unpinnedMapEntries, (kv) {
           final matches = visibleEntries.where(kv.filter.test);
@@ -213,12 +215,12 @@ class AlbumListPage extends StatelessWidget {
           if (!hasImage && hasVideo) return MimeTypeSectionKey.videos(context);
           return MimeTypeSectionKey.mixed(context);
         });
-      case AlbumChipSectionFactor.volume:
+      case .volume:
         sections = groupBy<FilterGridItem<AlbumBaseFilter>, ChipSectionKey>(unpinnedMapEntries, (kv) {
           final filter = kv.filter;
           return StorageVolumeSectionKey(context, filter is StoredAlbumFilter ? filter.storageVolume : null);
         });
-      case AlbumChipSectionFactor.none:
+      case .none:
         return {
           if (sortedMapEntries.isNotEmpty)
             const ChipSectionKey(): [

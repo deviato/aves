@@ -6,7 +6,6 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
-import android.content.res.Resources
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
@@ -25,6 +24,7 @@ import deckers.thibault.aves.channel.calls.StorageHandler
 import deckers.thibault.aves.channel.streams.darttoplatform.ImageByteStreamHandler
 import deckers.thibault.aves.channel.streams.darttoplatform.MediaStoreStreamHandler
 import deckers.thibault.aves.model.FieldMap
+import deckers.thibault.aves.utils.ContextUtils.devicePixelRatio
 import deckers.thibault.aves.utils.FlutterUtils
 import deckers.thibault.aves.utils.LogUtils
 import io.flutter.FlutterInjector
@@ -37,11 +37,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.nio.ByteBuffer
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
 import kotlin.math.roundToInt
 
 class HomeWidgetProvider : AppWidgetProvider() {
@@ -82,8 +82,6 @@ class HomeWidgetProvider : AppWidgetProvider() {
             updateWidgetImage(context, appWidgetManager, widgetId, imageProps)
         }
     }
-
-    private fun getDevicePixelRatio(): Float = Resources.getSystem().displayMetrics.density
 
     private fun getWidgetSizesDip(context: Context, widgetInfo: Bundle): List<SizeF> {
         var sizes: List<SizeF>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -126,7 +124,7 @@ class HomeWidgetProvider : AppWidgetProvider() {
         val params = hashMapOf(
             "widgetId" to widgetId,
             "sizesDip" to sizesDipMap,
-            "devicePixelRatio" to getDevicePixelRatio(),
+            "devicePixelRatio" to context.devicePixelRatio(),
             "drawEntryImage" to drawEntryImage,
             "reuseEntry" to reuseEntry,
             "isSystemThemeDark" to isNightModeOn,
@@ -138,7 +136,7 @@ class HomeWidgetProvider : AppWidgetProvider() {
 
         initFlutterEngine(context)
         try {
-            val props = suspendCoroutine { cont ->
+            val props = suspendCancellableCoroutine { cont ->
                 defaultScope.launch {
                     FlutterUtils.runOnUiThread {
                         tryDrawWidget(params, cont, 0)
@@ -215,9 +213,9 @@ class HomeWidgetProvider : AppWidgetProvider() {
             bytes: ByteArray,
             updateOnTap: Boolean,
         ): RemoteViews? {
-            val devicePixelRatio = getDevicePixelRatio()
-            val widthPx = (sizeDip.width * devicePixelRatio).roundToInt()
-            val heightPx = (sizeDip.height * devicePixelRatio).roundToInt()
+            val density = context.devicePixelRatio()
+            val widthPx = (sizeDip.width * density).roundToInt()
+            val heightPx = (sizeDip.height * density).roundToInt()
 
             try {
                 val bitmap = createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888).also {
@@ -265,16 +263,7 @@ class HomeWidgetProvider : AppWidgetProvider() {
         val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE, "widget://$widgetId".toUri(), context, HomeWidgetProvider::class.java)
             .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(widgetId))
 
-        return PendingIntent.getBroadcast(
-            context,
-            0,
-            intent,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            } else {
-                PendingIntent.FLAG_UPDATE_CURRENT
-            }
-        )
+        return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
     private fun buildOpenAppIntent(context: Context, widgetId: Int): PendingIntent {
@@ -282,16 +271,7 @@ class HomeWidgetProvider : AppWidgetProvider() {
         val intent = Intent(MainActivity.INTENT_ACTION_WIDGET_OPEN, "widget://$widgetId".toUri(), context, MainActivity::class.java)
             .putExtra(MainActivity.EXTRA_KEY_WIDGET_ID, widgetId)
 
-        return PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            } else {
-                PendingIntent.FLAG_UPDATE_CURRENT
-            }
-        )
+        return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
     companion object {

@@ -48,10 +48,12 @@ class MediaStoreSource extends CollectionSource {
     await _essentialLoader;
     addDirectories(albums: settings.pinnedFilters.whereType<StoredAlbumFilter>().map((v) => v.album).toSet());
     await updateGeneration();
-    unawaited(_loadEntries(
-      analysisController: analysisController,
-      loadTopEntriesFirst: loadTopEntriesFirst,
-    ));
+    unawaited(
+      _loadEntries(
+        analysisController: analysisController,
+        loadTopEntriesFirst: loadTopEntriesFirst,
+      ),
+    );
   }
 
   Future<void> _loadEssentials() async {
@@ -106,7 +108,12 @@ class MediaStoreSource extends CollectionSource {
     debugPrint('$runtimeType load ${stopwatch.elapsed} fetch known entries');
     final knownEntries = await localMediaDb.loadEntries(origin: EntryOrigins.mediaStoreContent, directory: scopeDirectory);
     final knownLiveEntries = knownEntries.where((entry) => !entry.trashed).toSet();
-    unawaited(reportService.setCustomKey('is_large_collection', knownEntries.length > 100000));
+    final isLargeCollection = knownEntries.length > 80000;
+    if (isLargeCollection && settings.isErrorReportingAllowed) {
+      // disable error reporting for large collections, to prevent noisy OOM reports
+      settings.isErrorReportingAllowed = false;
+    }
+    unawaited(reportService.setCustomKey('is_large_collection', isLargeCollection));
     unawaited(reportService.log('$runtimeType found ${knownEntries.length} known entries'));
 
     debugPrint('$runtimeType load ${stopwatch.elapsed} check obsolete entries');
@@ -142,15 +149,17 @@ class MediaStoreSource extends CollectionSource {
 
       // trash
       await loadTrashDetails();
-      unawaited(deleteExpiredTrash().then(
-        (deletedUris) {
-          if (deletedUris.isNotEmpty) {
-            debugPrint('evicted ${deletedUris.length} expired items from the trash');
-            removeEntries(deletedUris, includeTrash: true);
-          }
-        },
-        onError: (error) => debugPrint('failed to evict expired trash error=$error'),
-      ));
+      unawaited(
+        deleteExpiredTrash().then(
+          (deletedUris) {
+            if (deletedUris.isNotEmpty) {
+              debugPrint('evicted ${deletedUris.length} expired items from the trash');
+              removeEntries(deletedUris, includeTrash: true);
+            }
+          },
+          onError: (error) => debugPrint('failed to evict expired trash error=$error'),
+        ),
+      );
     }
     updateDerivedFilters();
 
@@ -191,7 +200,10 @@ class MediaStoreSource extends CollectionSource {
     // recover untracked trash items
     debugPrint('$runtimeType load ${stopwatch.elapsed} recover untracked entries');
     if (directory == null) {
-      newEntries.addAll(await recoverUntrackedTrashItems());
+      final recoveredEntries = await recoverUntrackedTrashItems();
+      // set media store as origin of recovered items, because they would be managed by it if restored
+      recoveredEntries.forEach((entry) => entry.origin = EntryOrigins.mediaStoreContent);
+      newEntries.addAll(recoveredEntries);
     }
 
     // verify paths because some apps move files without updating their `last modified date`
@@ -206,59 +218,72 @@ class MediaStoreSource extends CollectionSource {
     // fetch new & modified entries
     debugPrint('$runtimeType load ${stopwatch.elapsed} fetch new entries');
     final knownContentIds = knownDateByContentId.keys.toSet();
-    mediaStoreService.getEntries(knownDateByContentId, directory: directory).listen(
-      (entry) {
-        // when discovering modified entry with known content ID,
-        // reuse known entry ID to overwrite it while preserving favourites, etc.
-        final contentId = entry.contentId;
-        final existingEntry = knownContentIds.contains(contentId) ? knownLiveEntries.firstWhereOrNull((entry) => entry.contentId == contentId) : null;
-        entry.id = existingEntry?.id ?? localMediaDb.nextId;
+    mediaStoreService
+        .getEntries(knownDateByContentId, directory: directory)
+        .listen(
+          (entry) {
+            // when discovering modified entry with known content ID,
+            // reuse known entry ID to overwrite it while preserving favourites, etc.
+            final contentId = entry.contentId;
+            final existingEntry = knownContentIds.contains(contentId) ? knownLiveEntries.firstWhereOrNull((entry) => entry.contentId == contentId) : null;
+            entry.id = existingEntry?.id ?? localMediaDb.nextId;
 
-        newEntries.add(entry);
-        setProgress(done: newEntries.length, total: 0);
-      },
-      onDone: () async {
-        if (newEntries.isNotEmpty) {
-          debugPrint('$runtimeType load ${stopwatch.elapsed} save ${newEntries.length} new entries');
-          await localMediaDb.insertEntries(newEntries);
+            newEntries.add(entry);
+            setProgress(done: newEntries.length, total: 0);
+          },
+          onDone: () async {
+            if (newEntries.isNotEmpty) {
+              debugPrint('$runtimeType load ${stopwatch.elapsed} save ${newEntries.length} new entries');
+              await localMediaDb.insertEntries(newEntries);
 
-          // TODO TLAD find duplication cause
-          final duplicates = await localMediaDb.searchLiveDuplicates(EntryOrigins.mediaStoreContent, newEntries);
-          if (duplicates.isNotEmpty) {
-            unawaited(reportService.recordError(Exception('Loading entries yielded duplicates=${duplicates.join(', ')}')));
-            // post-error cleanup
-            await localMediaDb.removeIds(duplicates.map((v) => v.id).toSet());
-            for (final duplicate in duplicates) {
-              final duplicateId = duplicate.id;
-              newEntries.removeWhere((v) => duplicateId == v.id);
+              // TODO TLAD find duplication cause
+              final duplicates = await localMediaDb.searchLiveDuplicates(EntryOrigins.mediaStoreContent, newEntries);
+              if (duplicates.isNotEmpty) {
+                unawaited(reportService.recordError(Exception('Loading entries yielded duplicates=${duplicates.join(', ')}')));
+                // post-error cleanup
+                await localMediaDb.removeIds(duplicates.map((v) => v.id).toSet());
+                for (final duplicate in duplicates) {
+                  final duplicateId = duplicate.id;
+                  newEntries.removeWhere((v) => duplicateId == v.id);
+                }
+              }
+
+              // update trash details, if any
+              await Future.forEach(newEntries.where((v) => v.trashed), (entry) async {
+                final trashDetails = entry.trashDetails;
+                if (trashDetails != null) {
+                  await localMediaDb.updateTrash(entry.id, trashDetails);
+                } else {
+                  unawaited(reportService.recordError(Exception('Adding trashed entry but trash details are missing for entry=$entry')));
+                }
+              });
+
+              addEntries(newEntries);
+
+              // new entries include existing entries with obsolete paths
+              // so directories may be added, but also removed or simply have their content summary changed
+              invalidateAlbumFilterSummary();
+              updateDirectories();
             }
-          }
 
-          addEntries(newEntries);
+            debugPrint('$runtimeType load ${stopwatch.elapsed} analyze');
+            Set<AvesEntry>? analysisEntries;
+            final analysisIds = analysisController?.entryIds;
+            if (analysisIds != null) {
+              // not only visible entries, as hidden and vault items may be analyzed
+              analysisEntries = allEntries.where((entry) => analysisIds.contains(entry.id)).toSet();
+            }
+            await analyze(analysisController, entries: analysisEntries);
 
-          // new entries include existing entries with obsolete paths
-          // so directories may be added, but also removed or simply have their content summary changed
-          invalidateAlbumFilterSummary();
-          updateDirectories();
-        }
+            // the home page may not reflect the current derived filters
+            // as the initial addition of entries is silent,
+            // so we manually notify change for potential home screen filters
+            notifyAlbumsChanged();
 
-        debugPrint('$runtimeType load ${stopwatch.elapsed} analyze');
-        Set<AvesEntry>? analysisEntries;
-        final analysisIds = analysisController?.entryIds;
-        if (analysisIds != null) {
-          analysisEntries = visibleEntries.where((entry) => analysisIds.contains(entry.id)).toSet();
-        }
-        await analyze(analysisController, entries: analysisEntries);
-
-        // the home page may not reflect the current derived filters
-        // as the initial addition of entries is silent,
-        // so we manually notify change for potential home screen filters
-        notifyAlbumsChanged();
-
-        unawaited(reportService.log('$runtimeType load (new) done in ${stopwatch.elapsed.inSeconds}s for ${newEntries.length} new entries'));
-      },
-      onError: (error) => debugPrint('$runtimeType stream error=$error'),
-    );
+            unawaited(reportService.log('$runtimeType load (new) done in ${stopwatch.elapsed.inSeconds}s for ${newEntries.length} new entries'));
+          },
+          onError: (error) => debugPrint('$runtimeType stream error=$error'),
+        );
   }
 
   // returns URIs to retry later. They could be URIs that are:
@@ -273,15 +298,17 @@ class MediaStoreSource extends CollectionSource {
     state = SourceState.loading;
 
     unawaited(reportService.log('$runtimeType refresh start for ${changedUris.length} uris'));
-    final changedUriByContentId = Map.fromEntries(changedUris.map((uri) {
-      final pathSegments = Uri.parse(uri).pathSegments;
-      // e.g. URI `content://media/` has no path segment
-      if (pathSegments.isEmpty) return null;
-      final idString = pathSegments.last;
-      final contentId = int.tryParse(idString);
-      if (contentId == null) return null;
-      return MapEntry(contentId, uri);
-    }).nonNulls);
+    final changedUriByContentId = Map.fromEntries(
+      changedUris.map((uri) {
+        final pathSegments = Uri.parse(uri).pathSegments;
+        // e.g. URI `content://media/` has no path segment
+        if (pathSegments.isEmpty) return null;
+        final idString = pathSegments.last;
+        final contentId = int.tryParse(idString);
+        if (contentId == null) return null;
+        return MapEntry(contentId, uri);
+      }).nonNulls,
+    );
 
     // clean up obsolete entries
     final obsoleteContentIds = (await mediaStoreService.checkObsoleteContentIds(changedUriByContentId.keys.toList())).toSet();
@@ -298,6 +325,7 @@ class MediaStoreSource extends CollectionSource {
       final uri = kv.value;
       final sourceEntry = await mediaFetchService.getEntry(uri, null);
       if (sourceEntry != null) {
+        var isSourceEntryUsed = false;
         final existingEntry = allEntries.firstWhereOrNull((entry) => entry.contentId == contentId);
         // compare paths because some apps move files without updating their `last modified date`
         if (existingEntry == null || (sourceEntry.dateModifiedMillis ?? 0) > (existingEntry.dateModifiedMillis ?? 0) || sourceEntry.path != existingEntry.path) {
@@ -310,6 +338,7 @@ class MediaStoreSource extends CollectionSource {
               // it can discover new entries only if it can analyze them
               sourceEntry.id = localMediaDb.nextId;
               newEntries.add(sourceEntry);
+              isSourceEntryUsed = true;
             }
             final existingDirectory = existingEntry?.directory;
             if (existingDirectory != null) {
@@ -319,6 +348,9 @@ class MediaStoreSource extends CollectionSource {
             debugPrint('$runtimeType refreshUris entry=$sourceEntry is not located on a known storage volume. Will retry soon...');
             tempUris.add(uri);
           }
+        }
+        if (!isSourceEntryUsed) {
+          sourceEntry.dispose();
         }
       }
     }
@@ -414,10 +446,12 @@ class MediaStoreSource extends CollectionSource {
       } else {
         final sourceEntry = await mediaFetchService.getEntry(uri, null, allowUnsized: true);
         if (sourceEntry != null) {
-          newEntries.add(sourceEntry.copyWith(
-            id: localMediaDb.nextId,
-            origin: EntryOrigins.vault,
-          ));
+          newEntries.add(
+            sourceEntry.copyWith(
+              id: localMediaDb.nextId,
+              origin: EntryOrigins.vault,
+            ),
+          );
         }
       }
     }

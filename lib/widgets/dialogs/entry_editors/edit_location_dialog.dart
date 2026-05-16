@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:aves/app_mode.dart';
 import 'package:aves/model/entry/entry.dart';
@@ -34,6 +35,7 @@ import 'package:aves/widgets/map/map_page.dart';
 import 'package:aves_model/aves_model.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:gpx/gpx.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
@@ -68,7 +70,8 @@ class _EditEntryLocationDialogState extends State<EditEntryLocationDialog> with 
   final ValueNotifier<bool> _isValidNotifier = ValueNotifier(false);
 
   late NumberFormat coordinateFormatter;
-  static const _minTimeToGpxPoint = Duration(hours: 1);
+  static const _gpxProjection = SphericalMercator();
+  static const _minDurationToGpxPoint = Duration(hours: 1);
 
   @override
   void initState() {
@@ -110,67 +113,69 @@ class _EditEntryLocationDialogState extends State<EditEntryLocationDialog> with 
         data: TooltipTheme.of(context).copyWith(
           preferBelow: false,
         ),
-        child: Builder(builder: (context) {
-          final l10n = context.l10n;
+        child: Builder(
+          builder: (context) {
+            final l10n = context.l10n;
 
-          return AvesDialog(
-            title: l10n.editEntryLocationDialogTitle,
-            scrollableContent: [
-              Padding(
-                padding: const EdgeInsets.only(left: 16, top: 8, right: 16),
-                child: TextDropdownButton<LocationEditAction>(
-                  values: LocationEditAction.values,
-                  valueText: (v) => v.getText(context),
-                  value: _action,
-                  onChanged: (v) => setState(() {
-                    _action = v!;
-                    _validate();
-                  }),
-                  isExpanded: true,
-                  dropdownColor: Themes.thirdLayerColor(context),
+            return AvesDialog(
+              title: l10n.editEntryLocationDialogTitle,
+              scrollableContent: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, top: 8, right: 16),
+                  child: TextDropdownButton<LocationEditAction>(
+                    values: LocationEditAction.values,
+                    valueText: (v) => v.getText(context),
+                    value: _action,
+                    onChanged: (v) => setState(() {
+                      _action = v!;
+                      _validate();
+                    }),
+                    isExpanded: true,
+                    dropdownColor: Themes.thirdLayerColor(context),
+                  ),
                 ),
-              ),
-              AnimatedSwitcher(
-                duration: context.read<DurationsData>().formTransition,
-                switchInCurve: Curves.easeInOutCubic,
-                switchOutCurve: Curves.easeInOutCubic,
-                transitionBuilder: AvesTransitions.formTransitionBuilder,
-                child: KeyedSubtree(
-                  key: ValueKey(_action),
-                  child: _buildContent(),
+                AnimatedSwitcher(
+                  duration: context.read<DurationsData>().formTransition,
+                  switchInCurve: Curves.easeInOutCubic,
+                  switchOutCurve: Curves.easeInOutCubic,
+                  transitionBuilder: AvesTransitions.formTransitionBuilder,
+                  child: KeyedSubtree(
+                    key: ValueKey(_action),
+                    child: _buildContent(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            actions: [
-              const CancelButton(),
-              ValueListenableBuilder<bool>(
-                valueListenable: _isValidNotifier,
-                builder: (context, isValid, child) {
-                  return TextButton(
-                    onPressed: isValid ? () => _submit(context) : null,
-                    child: Text(l10n.applyButtonLabel),
-                  );
-                },
-              ),
-            ],
-          );
-        }),
+                const SizedBox(height: 8),
+              ],
+              actions: [
+                const CancelButton(),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _isValidNotifier,
+                  builder: (context, isValid, child) {
+                    return TextButton(
+                      onPressed: isValid ? () => _submit(context) : null,
+                      child: Text(l10n.applyButtonLabel),
+                    );
+                  },
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
   Widget _buildContent() {
     switch (_action) {
-      case LocationEditAction.chooseOnMap:
+      case .chooseOnMap:
         return _buildChooseOnMapContent(context);
-      case LocationEditAction.copyItem:
+      case .copyItem:
         return _buildCopyItemContent(context);
-      case LocationEditAction.setCustom:
+      case .setCustom:
         return _buildSetCustomContent(context);
-      case LocationEditAction.importGpx:
+      case .importGpx:
         return _buildImportGpxContent(context);
-      case LocationEditAction.remove:
+      case .remove:
         return const SizedBox();
     }
   }
@@ -319,7 +324,7 @@ class _EditEntryLocationDialogState extends State<EditEntryLocationDialog> with 
               Expanded(child: _gpxDateRangeText(context, _gpx)),
               const SizedBox(width: 8),
               IconButton(
-                icon: Icon(AIcons.fileImport),
+                icon: const Icon(AIcons.fileImport),
                 onPressed: _pickGpx,
                 tooltip: l10n.pickTooltip,
               ),
@@ -413,46 +418,66 @@ class _EditEntryLocationDialogState extends State<EditEntryLocationDialog> with 
     final gpx = _gpx;
     if (gpx == null) return;
 
-    final Map<AvesEntry, Wpt> wptByEntry = {};
-
     // dated items and points, oldest first
     final sortedEntries = widget.entries.where((v) => v.bestDate != null).sorted(AvesEntrySort.compareByDate).reversed.toList();
-    final sortedPoints = gpx.trks.expand((trk) => trk.trksegs).expand((trkSeg) => trkSeg.trkpts).where((v) => v.time != null).sortedBy((v) => v.time!);
+    final sortedPoints = gpx.trks.expand((trk) => trk.trksegs).expand((trkSeg) => trkSeg.trkpts).where((v) => v.time != null && v.lat != null && v.lon != null).sortedBy((v) => v.time!);
     if (sortedEntries.isNotEmpty && sortedPoints.isNotEmpty) {
       int entryIndex = 0;
       int pointIndex = 0;
-      final int maxDurationSecs = const Duration(days: 365).inSeconds;
-      int smallestDifferenceSecs = maxDurationSecs;
+
+      DateTime getEntryDate(AvesEntry entry) => entry.bestDate!;
+      DateTime getCorrectedPointDate(Wpt wpt) => wpt.time!.add(_gpxShift);
+      Duration getDurationToPoint(AvesEntry entry, Wpt wpt) => getEntryDate(entry).difference(getCorrectedPointDate(wpt)).abs();
+
       while (entryIndex < sortedEntries.length && pointIndex < sortedPoints.length) {
         final entry = sortedEntries[entryIndex];
-        final point = sortedPoints[pointIndex];
-        final entryDate = entry.bestDate!;
-        final pointTime = point.time!.add(_gpxShift);
-        final differenceSecs = entryDate.difference(pointTime).inSeconds.abs();
-        if (differenceSecs < smallestDifferenceSecs) {
-          smallestDifferenceSecs = differenceSecs;
-          wptByEntry[entry] = point;
-          pointIndex++;
+        final wpt = sortedPoints[pointIndex];
+
+        final entryDate = getEntryDate(entry);
+        final wptDate = getCorrectedPointDate(wpt);
+        final durationToPoint = getDurationToPoint(entry, wpt);
+
+        if (entryDate.isAfter(wptDate)) {
+          if (wpt == sortedPoints.last) {
+            if (durationToPoint < _minDurationToGpxPoint) {
+              // assign late entry to last point
+              _gpxMap[entry] = LatLng(wpt.lat!, wpt.lon!);
+            }
+            entryIndex++;
+          } else {
+            pointIndex++;
+          }
+        } else if (entryDate.isAtSameMomentAs(wptDate)) {
+          // assign entry to current point
+          _gpxMap[entry] = LatLng(wpt.lat!, wpt.lon!);
+          entryIndex++;
         } else {
-          smallestDifferenceSecs = maxDurationSecs;
+          if (wpt == sortedPoints.first) {
+            if (durationToPoint < _minDurationToGpxPoint) {
+              // assign early entry to first point
+              _gpxMap[entry] = LatLng(wpt.lat!, wpt.lon!);
+            }
+          } else {
+            // interpolate entry between previous and current point
+            final from = sortedPoints[pointIndex - 1];
+            final to = wpt;
+
+            final secondsFromStart = getDurationToPoint(entry, from).inSeconds;
+            final secondsToEnd = getDurationToPoint(entry, to).inSeconds;
+            final t = (secondsFromStart.toDouble()) / (secondsFromStart + secondsToEnd);
+
+            final fromXY = _gpxProjection.projectXY(LatLng(from.lat!, from.lon!));
+            final toXY = _gpxProjection.projectXY(LatLng(to.lat!, to.lon!));
+            final entryXY = (
+              lerpDouble(fromXY.$1, toXY.$1, t)!,
+              lerpDouble(fromXY.$2, toXY.$2, t)!,
+            );
+            _gpxMap[entry] = _gpxProjection.unprojectXY(entryXY.$1, entryXY.$2);
+          }
           entryIndex++;
         }
       }
     }
-
-    _gpxMap.addEntries(wptByEntry.entries.map((kv) {
-      final entry = kv.key;
-      final wpt = kv.value;
-      final timeToPoint = entry.bestDate!.difference(wpt.time!.add(_gpxShift)).abs();
-      if (timeToPoint < _minTimeToGpxPoint) {
-        final lat = wpt.lat;
-        final lon = wpt.lon;
-        if (lat != null && lon != null) {
-          return MapEntry(entry, LatLng(lat, lon));
-        }
-      }
-      return null;
-    }).nonNulls);
 
     setState(_validate);
   }
@@ -479,14 +504,16 @@ class _EditEntryLocationDialogState extends State<EditEntryLocationDialog> with 
 
     final tracks = _gpx?.trks
         .expand((trk) => trk.trksegs)
-        .map((trkSeg) => trkSeg.trkpts
-            .map((wpt) {
-              final lat = wpt.lat;
-              final lon = wpt.lon;
-              return (lat != null && lon != null) ? LatLng(lat, lon) : null;
-            })
-            .nonNulls
-            .toList())
+        .map(
+          (trkSeg) => trkSeg.trkpts
+              .map((wpt) {
+                final lat = wpt.lat;
+                final lon = wpt.lon;
+                return (lat != null && lon != null) ? LatLng(lat, lon) : null;
+              })
+              .nonNulls
+              .toList(),
+        )
         .toSet();
 
     await Navigator.maybeOf(context)?.push(
@@ -569,15 +596,15 @@ class _EditEntryLocationDialogState extends State<EditEntryLocationDialog> with 
 
   void _validate() {
     switch (_action) {
-      case LocationEditAction.chooseOnMap:
+      case .chooseOnMap:
         _isValidNotifier.value = _mapCoordinates != null;
-      case LocationEditAction.copyItem:
+      case .copyItem:
         _isValidNotifier.value = _copyItemSource.hasGps;
-      case LocationEditAction.setCustom:
+      case .setCustom:
         _isValidNotifier.value = _parseLatLng() != null;
-      case LocationEditAction.importGpx:
+      case .importGpx:
         _isValidNotifier.value = _gpxMap.isNotEmpty;
-      case LocationEditAction.remove:
+      case .remove:
         _isValidNotifier.value = true;
     }
   }
@@ -588,15 +615,15 @@ class _EditEntryLocationDialogState extends State<EditEntryLocationDialog> with 
     final LocationEditActionResult result = {};
     void addLocationForAllEntries(LatLng? latLng) => result.addEntries(entries.map((v) => MapEntry(v, latLng)));
     switch (_action) {
-      case LocationEditAction.chooseOnMap:
+      case .chooseOnMap:
         addLocationForAllEntries(_mapCoordinates);
-      case LocationEditAction.copyItem:
+      case .copyItem:
         addLocationForAllEntries(_copyItemSource.latLng);
-      case LocationEditAction.setCustom:
+      case .setCustom:
         addLocationForAllEntries(_parseLatLng());
-      case LocationEditAction.importGpx:
+      case .importGpx:
         result.addAll(_gpxMap);
-      case LocationEditAction.remove:
+      case .remove:
         addLocationForAllEntries(ExtraAvesEntryMetadataEdition.removalLocation);
     }
     navigator?.pop(result);

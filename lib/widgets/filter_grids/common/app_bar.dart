@@ -19,33 +19,35 @@ import 'package:aves/widgets/common/app_bar/crumb_line.dart';
 import 'package:aves/widgets/common/basic/popup/menu_row.dart';
 import 'package:aves/widgets/common/extensions/build_context.dart';
 import 'package:aves/widgets/common/identity/aves_app_bar.dart';
+import 'package:aves/widgets/common/identity/aves_filter_chip.dart';
 import 'package:aves/widgets/common/identity/buttons/captioned_button.dart';
 import 'package:aves/widgets/common/providers/filter_group_provider.dart';
 import 'package:aves/widgets/common/search/route.dart';
 import 'package:aves/widgets/filter_grids/common/action_delegates/chip_set.dart';
 import 'package:aves/widgets/filter_grids/common/group_crumb_line.dart';
 import 'package:aves/widgets/filter_grids/common/query_bar.dart';
-import 'package:aves/widgets/search/search_delegate.dart';
+import 'package:aves/widgets/search/collection_search_delegate.dart';
 import 'package:aves_model/aves_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 
-typedef ActionsBuilder<T extends CollectionFilter, CSAD extends ChipSetActionDelegate<T>> = List<Widget> Function(
-  BuildContext context,
-  AppMode appMode,
-  Selection<FilterGridItem<T>> selection,
-  CSAD actionDelegate,
-);
+typedef ActionsBuilder<T extends CollectionFilter, CSAD extends ChipSetActionDelegate<T>> =
+    List<Widget> Function(
+      BuildContext context,
+      AppMode appMode,
+      Selection<FilterGridItem<T>> selection,
+      CSAD actionDelegate,
+    );
 
 class FilterGridAppBar<T extends CollectionFilter, CSAD extends ChipSetActionDelegate<T>> extends StatefulWidget {
   final CollectionSource source;
   final String title;
   final CSAD actionDelegate;
   final ActionsBuilder<T, CSAD>? actionsBuilder;
-  final bool isEmpty;
   final ValueNotifier<double> appBarHeightNotifier;
   final ScrollController scrollController;
+  final void Function(BuildContext context, T filter)? onGroupCrumbTap;
 
   const FilterGridAppBar({
     super.key,
@@ -53,9 +55,9 @@ class FilterGridAppBar<T extends CollectionFilter, CSAD extends ChipSetActionDel
     required this.title,
     required this.actionDelegate,
     this.actionsBuilder,
-    required this.isEmpty,
     required this.appBarHeightNotifier,
     required this.scrollController,
+    required this.onGroupCrumbTap,
   });
 
   @override
@@ -64,7 +66,7 @@ class FilterGridAppBar<T extends CollectionFilter, CSAD extends ChipSetActionDel
   static PopupMenuEntry<ChipSetAction> toMenuItem(BuildContext context, ChipSetAction action, {required bool enabled}) {
     late Widget child;
     switch (action) {
-      case ChipSetAction.toggleTitleSearch:
+      case .toggleTitleSearch:
         child = TitleSearchToggler(
           queryEnabled: context.read<Query>().enabled,
           isMenuItem: true,
@@ -199,10 +201,24 @@ class _FilterGridAppBarState<T extends CollectionFilter, CSAD extends ChipSetAct
                         child: Selector<FilterGroupNotifier, Uri?>(
                           selector: (context, notifier) => notifier.value,
                           builder: (context, groupUri, child) {
+                            WidgetBuilder? lastCrumbBuilder;
+                            final onGroupCrumbTap = widget.onGroupCrumbTap;
+                            if (onGroupCrumbTap != null) {
+                              final grouping = groupUri != null ? FilterGrouping.forUri(groupUri) : null;
+                              final groupFilter = grouping?.uriToFilter(groupUri);
+                              if (groupFilter is T) {
+                                lastCrumbBuilder = (context) => AvesFilterChip(
+                                  filter: groupFilter,
+                                  onTap: (_) => onGroupCrumbTap(context, groupFilter),
+                                  onLongPress: null,
+                                );
+                              }
+                            }
                             return FilterGroupCrumbLine(
                               key: const Key('crumbs'),
                               groupUri: groupUri,
                               onTap: (uri) => context.read<FilterGroupNotifier?>()?.value = uri,
+                              lastCrumbBuilder: lastCrumbBuilder,
                             );
                           },
                         ),
@@ -309,18 +325,18 @@ class _FilterGridAppBarState<T extends CollectionFilter, CSAD extends ChipSetAct
     final selectedFilters = selectedItems.map((v) => v.filter).toSet();
 
     bool isVisible(ChipSetAction action) => actionDelegate.isVisible(
-          action,
-          appMode: appMode,
-          isSelecting: isSelecting,
-          itemCount: itemCount,
-          selectedFilters: selectedFilters,
-        );
+      action,
+      appMode: appMode,
+      isSelecting: isSelecting,
+      itemCount: itemCount,
+      selectedFilters: selectedFilters,
+    );
     bool canApply(ChipSetAction action) => actionDelegate.canApply(
-          action,
-          isSelecting: isSelecting,
-          itemCount: itemCount,
-          selectedFilters: selectedFilters,
-        );
+      action,
+      isSelecting: isSelecting,
+      itemCount: itemCount,
+      selectedFilters: selectedFilters,
+    );
 
     return settings.useTvLayout
         ? _buildTelevisionActions(
@@ -376,7 +392,9 @@ class _FilterGridAppBarState<T extends CollectionFilter, CSAD extends ChipSetAct
   }) {
     final isSelecting = selection.isSelecting;
 
-    final quickActionButtons = (isSelecting ? selectionQuickActions : browsingQuickActions).where(isVisible).map(
+    final quickActionButtons = (isSelecting ? selectionQuickActions : browsingQuickActions)
+        .where(isVisible)
+        .map(
           (action) => _buildButtonIcon(context, actionDelegate, action, enabled: canApply(action)),
         );
 
@@ -385,7 +403,9 @@ class _FilterGridAppBarState<T extends CollectionFilter, CSAD extends ChipSetAct
       ...quickActionButtons,
       PopupMenuButton<ChipSetAction>(
         itemBuilder: (context) {
-          final generalMenuItems = ChipSetActions.general.where(isVisible).map(
+          final generalMenuItems = ChipSetActions.general
+              .where(isVisible)
+              .map(
                 (action) => FilterGridAppBar.toMenuItem(context, action, enabled: canApply(action)),
               );
 
@@ -435,7 +455,7 @@ class _FilterGridAppBarState<T extends CollectionFilter, CSAD extends ChipSetAct
   }) {
     final onPressed = enabled ? () => _onActionSelected(context, action, actionDelegate) : null;
     switch (action) {
-      case ChipSetAction.toggleTitleSearch:
+      case .toggleTitleSearch:
         // `Query` may not be available during hero
         return Selector<Query?, bool>(
           selector: (context, query) => query?.enabled ?? false,
@@ -463,7 +483,7 @@ class _FilterGridAppBarState<T extends CollectionFilter, CSAD extends ChipSetAct
     required bool enabled,
   }) {
     switch (action) {
-      case ChipSetAction.toggleTitleSearch:
+      case .toggleTitleSearch:
         return TitleSearchTogglerCaption(
           enabled: enabled,
         );

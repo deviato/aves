@@ -49,9 +49,9 @@ class RenderMosaicGridRow extends RenderBox with ContainerRenderObjectMixin<Rend
     required MosaicRowLayout rowLayout,
     required double spacing,
     required TextDirection textDirection,
-  })  : _rowLayout = rowLayout,
-        _spacing = spacing,
-        _textDirection = textDirection {
+  }) : _rowLayout = rowLayout,
+       _spacing = spacing,
+       _textDirection = textDirection {
     addAll(children);
   }
 
@@ -111,7 +111,7 @@ class RenderMosaicGridRow extends RenderBox with ContainerRenderObjectMixin<Rend
       return;
     }
     final thumbnailHeight = rowLayout.height - spacing;
-    size = Size(constraints.maxWidth, rowLayout.height);
+    size = Size(constraints.maxWidth, constraints.maxHeight);
     final flipMainAxis = textDirection == TextDirection.rtl;
     var i = 0;
     double offsetX = flipMainAxis ? size.width : 0;

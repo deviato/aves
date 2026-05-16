@@ -1,5 +1,7 @@
+import 'package:aves/model/filters/covered/tag.dart';
 import 'package:aves/model/filters/filters.dart';
 import 'package:aves/model/settings/defaults.dart';
+import 'package:aves/model/source/collection_source.dart';
 import 'package:aves/model/vaults/vaults.dart';
 import 'package:aves/widgets/aves_app.dart';
 import 'package:aves_model/aves_model.dart';
@@ -9,7 +11,7 @@ mixin AppSettings on SettingsAccess {
   static const int recentFilterHistoryMax = 20;
 
   void initAppSettings() {
-    vaults.addListener(_onVaultsChanged);
+    vaults.lockStateChangeNotifier.addListener(_onVaultsChanged);
   }
 
   bool get hasAcceptedTerms => getBool(SettingKeys.hasAcceptedTermsKey) ?? SettingsDefaults.hasAcceptedTerms;
@@ -131,4 +133,10 @@ mixin AppSettings on SettingsAccess {
   }
 
   void _onVaultsChanged() => _protectedRecentTags = null;
+
+  void removeObsoleteRecentTags(CollectionSource? source) {
+    if (source != null) {
+      recentTags = recentTags.where((v) => v is! TagFilter || source.sortedTags.contains(v.tag)).toList();
+    }
+  }
 }

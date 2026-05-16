@@ -32,7 +32,7 @@ import 'package:aves/widgets/filter_grids/albums_page.dart';
 import 'package:aves/widgets/filter_grids/tags_page.dart';
 import 'package:aves/widgets/home/home_error.dart';
 import 'package:aves/widgets/map/map_page.dart';
-import 'package:aves/widgets/search/search_delegate.dart';
+import 'package:aves/widgets/search/collection_search_delegate.dart';
 import 'package:aves/widgets/settings/home_widget_settings_page.dart';
 import 'package:aves/widgets/settings/screen_saver_settings_page.dart';
 import 'package:aves/widgets/viewer/entry_viewer_page.dart';
@@ -48,8 +48,7 @@ import 'package:provider/provider.dart';
 class HomePage extends StatefulWidget {
   static const routeName = '/';
 
-  // untyped map as it is coming from the platform
-  final Map? intentData;
+  final Map<String, Object?>? intentData;
 
   const HomePage({
     super.key,
@@ -87,13 +86,13 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) => AvesScaffold(
-        body: _setupError != null
-            ? HomeError(
-                error: _setupError!.$1,
-                stack: _setupError!.$2,
-              )
-            : null,
-      );
+    body: _setupError != null
+        ? HomeError(
+            error: _setupError!.$1,
+            stack: _setupError!.$2,
+          )
+        : null,
+  );
 
   Future<void> _setup() async {
     try {
@@ -106,7 +105,7 @@ class _HomePageState extends State<HomePage> {
 
       var appMode = AppMode.main;
       var error = false;
-      final intentData = widget.intentData ?? await IntentService.getIntentData();
+      final Map<String, Object?> intentData = widget.intentData ?? await IntentService.getIntentData();
       final intentAction = intentData[IntentDataKeys.action] as String?;
       _initialFilters = null;
       _initialExplorerPath = null;
@@ -175,13 +174,13 @@ class _HomePageState extends State<HomePage> {
               await settings.reload();
               final page = settings.getWidgetOpenPage(widgetId);
               switch (page) {
-                case WidgetOpenPage.collection:
+                case .collection:
                   _initialFilters = settings.getWidgetCollectionFilters(widgetId);
-                case WidgetOpenPage.viewer:
+                case .viewer:
                   appMode = AppMode.view;
                   intentUri = settings.getWidgetUri(widgetId);
-                case WidgetOpenPage.home:
-                case WidgetOpenPage.updateWidget:
+                case .home:
+                case .updateWidget:
                   break;
               }
               unawaited(WidgetService.update(widgetId));
@@ -200,9 +199,9 @@ class _HomePageState extends State<HomePage> {
         _initialExplorerPath = intentData[IntentDataKeys.explorerPath] as String?;
 
         switch (appMode) {
-          case AppMode.view:
-          case AppMode.edit:
-          case AppMode.setWallpaper:
+          case .view:
+          case .edit:
+          case .setWallpaper:
             if (intentUri != null) {
               _viewerEntry = await _initViewerEntry(
                 uri: intentUri,
@@ -224,10 +223,10 @@ class _HomePageState extends State<HomePage> {
       unawaited(reportService.setCustomKey('app_mode', appMode.toString()));
 
       switch (appMode) {
-        case AppMode.main:
-        case AppMode.pickCollectionFiltersExternal:
-        case AppMode.pickSingleMediaExternal:
-        case AppMode.pickMultipleMediaExternal:
+        case .main:
+        case .pickCollectionFiltersExternal:
+        case .pickSingleMediaExternal:
+        case .pickMultipleMediaExternal:
           unawaited(GlobalSearch.registerCallback());
           unawaited(AnalysisService.registerCallback());
           final source = context.read<CollectionSource>();
@@ -237,12 +236,12 @@ class _HomePageState extends State<HomePage> {
             source.canAnalyze = true;
             await source.init(scope: CollectionSource.fullScope, loadTopEntriesFirst: loadTopEntriesFirst);
           }
-        case AppMode.screenSaver:
+        case .screenSaver:
           await reportService.log('Initialize source to start screen saver');
           final source = context.read<CollectionSource>();
           source.canAnalyze = false;
           await source.init(scope: settings.screenSaverCollectionFilters);
-        case AppMode.view:
+        case .view:
           if (_isViewerSourceable(_viewerEntry) && _secureUris == null) {
             final directory = _viewerEntry?.directory;
             if (directory != null) {
@@ -256,8 +255,8 @@ class _HomePageState extends State<HomePage> {
           } else {
             await _initViewerEssentials();
           }
-        case AppMode.edit:
-        case AppMode.setWallpaper:
+        case .edit:
+        case .setWallpaper:
           await _initViewerEssentials();
         default:
           break;
@@ -267,10 +266,12 @@ class _HomePageState extends State<HomePage> {
 
       // `pushReplacement` is not enough in some edge cases
       // e.g. when opening the viewer in `view` mode should replace a viewer in `main` mode
-      unawaited(Navigator.maybeOf(context)?.pushAndRemoveUntil(
-        await _getRedirectRoute(appMode),
-        (route) => false,
-      ));
+      unawaited(
+        Navigator.maybeOf(context)?.pushAndRemoveUntil(
+          await _getRedirectRoute(appMode),
+          (route) => false,
+        ),
+      );
     } catch (error, stack) {
       debugPrint('failed to setup app with error=$error\n$stack');
       setState(() => _setupError = (error, stack));
@@ -303,7 +304,7 @@ class _HomePageState extends State<HomePage> {
     String routeName;
     Set<CollectionFilter?>? filters;
     switch (appMode) {
-      case AppMode.setWallpaper:
+      case .setWallpaper:
         return DirectMaterialPageRoute(
           settings: const RouteSettings(name: WallpaperPage.routeName),
           builder: (_) {
@@ -312,7 +313,7 @@ class _HomePageState extends State<HomePage> {
             );
           },
         );
-      case AppMode.view:
+      case .view:
         AvesEntry viewerEntry = _viewerEntry!;
         CollectionLens? collection;
 
@@ -361,7 +362,7 @@ class _HomePageState extends State<HomePage> {
             );
           },
         );
-      case AppMode.edit:
+      case .edit:
         return DirectMaterialPageRoute(
           settings: const RouteSettings(name: EntryViewerPage.routeName),
           builder: (_) {
@@ -370,24 +371,24 @@ class _HomePageState extends State<HomePage> {
             );
           },
         );
-      case AppMode.initialization:
-      case AppMode.main:
-      case AppMode.pickCollectionFiltersExternal:
-      case AppMode.pickSingleMediaExternal:
-      case AppMode.pickMultipleMediaExternal:
-      case AppMode.pickFilteredMediaInternal:
-      case AppMode.pickUnfilteredMediaInternal:
-      case AppMode.pickFilterInternal:
-      case AppMode.previewMap:
-      case AppMode.screenSaver:
-      case AppMode.slideshow:
+      case .initialization:
+      case .main:
+      case .pickCollectionFiltersExternal:
+      case .pickSingleMediaExternal:
+      case .pickMultipleMediaExternal:
+      case .pickFilteredMediaInternal:
+      case .pickUnfilteredMediaInternal:
+      case .pickFilterInternal:
+      case .previewMap:
+      case .screenSaver:
+      case .slideshow:
         routeName = _initialRouteName ?? settings.homeNavItem.route;
         filters = _initialFilters ?? (settings.homeNavItem.route == CollectionPage.routeName ? settings.homeCustomCollection : {});
     }
     Route buildRoute(WidgetBuilder builder) => DirectMaterialPageRoute(
-          settings: RouteSettings(name: routeName),
-          builder: builder,
-        );
+      settings: RouteSettings(name: routeName),
+      builder: builder,
+    );
 
     final source = context.read<CollectionSource>();
     switch (routeName) {

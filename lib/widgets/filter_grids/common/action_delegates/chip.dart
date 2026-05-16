@@ -14,7 +14,7 @@ import 'package:aves/services/common/services.dart';
 import 'package:aves/widgets/common/action_mixins/feedback.dart';
 import 'package:aves/widgets/common/action_mixins/vault_aware.dart';
 import 'package:aves/widgets/common/extensions/build_context.dart';
-import 'package:aves/widgets/dialogs/aves_dialog.dart';
+import 'package:aves/widgets/dialogs/aves_confirmation_dialog.dart';
 import 'package:aves/widgets/explorer/explorer_page.dart';
 import 'package:aves/widgets/filter_grids/albums_page.dart';
 import 'package:aves/widgets/filter_grids/countries_page.dart';
@@ -31,27 +31,26 @@ class ChipActionDelegate with FeedbackMixin, VaultAwareMixin {
     required CollectionFilter filter,
   }) {
     switch (action) {
-      case ChipAction.goToAlbumPage:
+      case .goToAlbumPage:
         return filter is AlbumBaseFilter;
-      case ChipAction.goToCountryPage:
+      case .goToCountryPage:
         return filter is LocationFilter && filter.level == LocationLevel.country;
-      case ChipAction.goToPlacePage:
+      case .goToPlacePage:
         return filter is LocationFilter && filter.level == LocationLevel.place;
-      case ChipAction.goToTagPage:
+      case .goToTagPage:
         return filter is TagFilter;
-      case ChipAction.goToExplorerPage:
-        return filter is StoredAlbumFilter || filter is PathFilter;
-      case ChipAction.ratingOrGreater:
-        return filter is RatingFilter && 1 < filter.rating && filter.rating < 5 && filter.op != RatingFilter.opOrGreater;
-      case ChipAction.ratingOrLower:
-        return filter is RatingFilter && 1 < filter.rating && filter.rating < 5 && filter.op != RatingFilter.opOrLower;
-      case ChipAction.decompose:
+      case .goToExplorerPage:
+        return (filter is StoredAlbumFilter && !vaults.isVault(filter.album)) || filter is PathFilter;
+      case .ratingOrGreater:
+        return filter is RatingFilter && 1 <= filter.rating && filter.rating < 5 && filter.op != RatingFilter.opOrGreater;
+      case .ratingOrLower:
+        return filter is RatingFilter && 1 < filter.rating && filter.rating <= 5 && filter.op != RatingFilter.opOrLower;
+      case .decompose:
         return filter is DynamicAlbumFilter;
-      case ChipAction.reverse:
+      case .reverse:
+      case .hide:
         return true;
-      case ChipAction.hide:
-        return !(filter is StoredAlbumFilter && vaults.isVault(filter.album));
-      case ChipAction.lockVault:
+      case .lockVault:
         return (filter is StoredAlbumFilter && vaults.isVault(filter.album) && !vaults.isLocked(filter.album));
     }
   }
@@ -59,17 +58,17 @@ class ChipActionDelegate with FeedbackMixin, VaultAwareMixin {
   void onActionSelected(BuildContext context, CollectionFilter filter, ChipAction action) {
     reportService.log('$runtimeType handles $action');
     switch (action) {
-      case ChipAction.goToAlbumPage:
+      case .goToAlbumPage:
         final initialGroup = albumGrouping.getFilterParent(filter);
         _goTo(context, filter, AlbumListPage.routeName, (context) => AlbumListPage(initialGroup: initialGroup));
-      case ChipAction.goToCountryPage:
+      case .goToCountryPage:
         _goTo(context, filter, CountryListPage.routeName, (context) => const CountryListPage());
-      case ChipAction.goToPlacePage:
+      case .goToPlacePage:
         _goTo(context, filter, PlaceListPage.routeName, (context) => const PlaceListPage());
-      case ChipAction.goToTagPage:
+      case .goToTagPage:
         final initialGroup = tagGrouping.getFilterParent(filter);
         _goTo(context, filter, TagListPage.routeName, (context) => TagListPage(initialGroup: initialGroup));
-      case ChipAction.goToExplorerPage:
+      case .goToExplorerPage:
         String? path;
         if (filter is StoredAlbumFilter) {
           path = filter.album;
@@ -85,17 +84,17 @@ class ChipActionDelegate with FeedbackMixin, VaultAwareMixin {
             (route) => false,
           );
         }
-      case ChipAction.ratingOrGreater:
+      case .ratingOrGreater:
         SelectFilterNotification((filter as RatingFilter).copyWith(RatingFilter.opOrGreater)).dispatch(context);
-      case ChipAction.ratingOrLower:
+      case .ratingOrLower:
         SelectFilterNotification((filter as RatingFilter).copyWith(RatingFilter.opOrLower)).dispatch(context);
-      case ChipAction.decompose:
+      case .decompose:
         DecomposeFilterNotification(filter).dispatch(context);
-      case ChipAction.reverse:
+      case .reverse:
         SelectFilterNotification(filter.reverse()).dispatch(context);
-      case ChipAction.hide:
+      case .hide:
         _hide(context, filter);
-      case ChipAction.lockVault:
+      case .lockVault:
         if (filter is StoredAlbumFilter) {
           lockFilters({filter});
         }
@@ -119,22 +118,20 @@ class ChipActionDelegate with FeedbackMixin, VaultAwareMixin {
   }
 
   Future<void> _hide(BuildContext context, CollectionFilter filter) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AvesDialog(
-        content: Text(context.l10n.hideFilterConfirmationDialogMessage),
-        actions: [
-          const CancelButton(),
-          TextButton(
-            onPressed: () => Navigator.maybeOf(context)?.pop(true),
-            child: Text(context.l10n.hideButtonLabel),
-          ),
-        ],
-      ),
-      routeSettings: const RouteSettings(name: AvesDialog.confirmationRouteName),
-    );
-    if (confirmed == null || !confirmed) return;
+    final l10n = context.l10n;
 
-    settings.changeFilterVisibility({filter}, false);
+    if (!await showConfirmationDialog(
+      context: context,
+      message: l10n.hideFilterConfirmationDialogMessage,
+      ok: l10n.hideButtonLabel,
+    )) {
+      return;
+    }
+
+    final filters = {filter};
+    if (!await unlockFilters(context, filters)) return;
+
+    settings.changeFilterVisibility(filters, false);
+    lockFilters(filters);
   }
 }

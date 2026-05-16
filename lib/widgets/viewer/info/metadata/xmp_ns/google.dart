@@ -16,41 +16,46 @@ abstract class XmpGoogleNamespace extends XmpNamespace {
 
   @override
   Map<String, InfoValueSpanBuilder> linkifyValues(List<XmpProp> props) {
-    return Map.fromEntries(dataProps.map((t) {
-      final (dataPropPath, mimePropPath) = t;
-      final dataProp = props.firstWhereOrNull((prop) => prop.path == dataPropPath);
-      final mimeProp = props.firstWhereOrNull((prop) => prop.path == mimePropPath);
-      return (dataProp != null && mimeProp != null)
-          ? MapEntry(
-              dataProp.displayKey,
-              InfoRowGroup.linkSpanBuilder(
-                linkText: (context) => context.l10n.viewerInfoOpenLinkText,
-                onTap: (context) {
-                  final pattern = RegExp(r'(.+):(.+)([(\d)])?');
-                  final props = dataProp.path.split('/').expand((part) {
-                    var match = pattern.firstMatch(part);
-                    if (match == null) return [];
+    return Map.fromEntries(
+      dataProps.map((t) {
+        final (dataPropPath, mimePropPath) = t;
+        final dataProp = props.firstWhereOrNull((prop) => prop.path == dataPropPath);
+        final mimeProp = props.firstWhereOrNull((prop) => prop.path == mimePropPath);
+        return (dataProp != null && mimeProp != null)
+            ? MapEntry(
+                dataProp.displayKey,
+                InfoRowGroup.linkSpanBuilder(
+                  linkText: (context) => context.l10n.viewerInfoOpenLinkText,
+                  onTap: (context) {
+                    final pattern = RegExp(r'(.+):(.+)([(\d)])?');
+                    final props = dataProp.path.split('/').expand((part) {
+                      final expandedPart = <Object?>[];
+                      var match = pattern.firstMatch(part);
+                      if (match == null) return expandedPart;
 
-                    // ignore namespace prefix
-                    final propName = match.group(2);
-                    final prop = [nsUri, propName];
+                      // ignore namespace prefix
+                      final propName = match.group(2);
+                      final prop = [nsUri, propName];
 
-                    final indexString = match.groupCount >= 4 ? match.group(4) : null;
-                    final index = indexString != null ? int.tryParse(indexString) : null;
-                    if (index != null) {
-                      return [prop, index];
-                    } else {
-                      return [prop];
-                    }
-                  }).toList();
-                  return OpenEmbeddedDataNotification.xmp(
-                    props: props,
-                    mimeType: mimeProp.value,
-                  ).dispatch(context);
-                },
-              ))
-          : null;
-    }).nonNulls);
+                      final indexString = match.groupCount >= 4 ? match.group(4) : null;
+                      final index = indexString != null ? int.tryParse(indexString) : null;
+                      if (index != null) {
+                        expandedPart.addAll([prop, index]);
+                      } else {
+                        expandedPart.add(prop);
+                      }
+                      return expandedPart;
+                    }).toList();
+                    return OpenEmbeddedDataNotification.xmp(
+                      props: props,
+                      mimeType: mimeProp.value,
+                    ).dispatch(context);
+                  },
+                ),
+              )
+            : null;
+      }).nonNulls,
+    );
   }
 }
 
@@ -59,8 +64,8 @@ class XmpGAudioNamespace extends XmpGoogleNamespace {
 
   @override
   List<(String, String)> get dataProps => [
-        ('${nsPrefix}Data', '${nsPrefix}Mime'),
-      ];
+    ('${nsPrefix}Data', '${nsPrefix}Mime'),
+  ];
 }
 
 class XmpGCameraNamespace extends XmpGoogleNamespace {
@@ -68,8 +73,8 @@ class XmpGCameraNamespace extends XmpGoogleNamespace {
 
   @override
   List<(String, String)> get dataProps => [
-        ('${nsPrefix}RelitInputImageData', '${nsPrefix}RelitInputImageMime'),
-      ];
+    ('${nsPrefix}RelitInputImageData', '${nsPrefix}RelitInputImageMime'),
+  ];
 }
 
 class XmpGContainer extends XmpNamespace {
@@ -101,9 +106,9 @@ class XmpGDepthNamespace extends XmpGoogleNamespace {
 
   @override
   List<(String, String)> get dataProps => [
-        ('${nsPrefix}Data', '${nsPrefix}Mime'),
-        ('${nsPrefix}Confidence', '${nsPrefix}ConfidenceMime'),
-      ];
+    ('${nsPrefix}Data', '${nsPrefix}Mime'),
+    ('${nsPrefix}Confidence', '${nsPrefix}ConfidenceMime'),
+  ];
 }
 
 class XmpGDeviceNamespace extends XmpNamespace {
@@ -170,6 +175,6 @@ class XmpGImageNamespace extends XmpGoogleNamespace {
 
   @override
   List<(String, String)> get dataProps => [
-        ('${nsPrefix}Data', '${nsPrefix}Mime'),
-      ];
+    ('${nsPrefix}Data', '${nsPrefix}Mime'),
+  ];
 }

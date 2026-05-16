@@ -59,22 +59,28 @@ class HomeWidgetPainter {
     if (outline != null) {
       drawOutline(canvas, path, devicePixelRatio, outline);
     }
-    final widgetImage = await recorder.endRecording().toImage(widthPx.round(), heightPx.round());
-    final byteData = await widgetImage.toByteData(format: format);
-    return byteData?.buffer.asUint8List() ?? Uint8List(0);
+
+    final picture = recorder.endRecording();
+    final widgetImage = await picture.toImage(widthPx.round(), heightPx.round());
+    picture.dispose();
+
+    final imageData = await widgetImage.toByteData(format: format);
+    widgetImage.dispose();
+    return imageData?.buffer.asUint8List() ?? Uint8List(0);
   }
 
   static void drawOutline(ui.Canvas canvas, ui.Path outlinePath, double devicePixelRatio, Color color) {
     canvas.drawPath(
-        outlinePath,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..color = color
-          ..strokeWidth = AvesFilterChip.outlineWidth * devicePixelRatio * 2
-          ..strokeCap = StrokeCap.round);
+      outlinePath,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..color = color
+        ..strokeWidth = AvesFilterChip.outlineWidth * devicePixelRatio * 2
+        ..strokeCap = StrokeCap.round,
+    );
   }
 
-  FutureOr<ui.Image?> _getEntryImage(AvesEntry? entry, double extent) async {
+  Future<ui.Image?> _getEntryImage(AvesEntry? entry, double extent) async {
     if (entry == null) return null;
 
     final provider = entry.getThumbnail(extent: extent);

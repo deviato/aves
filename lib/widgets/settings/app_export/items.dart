@@ -20,7 +20,7 @@ extension ExtraAppExportItem on AppExportItem {
     };
   }
 
-  dynamic export(CollectionSource source) {
+  Object? export(CollectionSource source) {
     return switch (this) {
       AppExportItem.covers => covers.export(source),
       AppExportItem.dynamicAlbums => dynamicAlbums.export(),
@@ -29,16 +29,16 @@ extension ExtraAppExportItem on AppExportItem {
     };
   }
 
-  Future<void> import(dynamic jsonMap, CollectionSource source) async {
+  Future<void> import(Object jsonObject, CollectionSource source) async {
     switch (this) {
-      case AppExportItem.covers:
-        covers.import(jsonMap, source);
-      case AppExportItem.dynamicAlbums:
-        dynamicAlbums.import(jsonMap);
-      case AppExportItem.favourites:
-        favourites.import(jsonMap, source);
-      case AppExportItem.settings:
-        await settings.import(jsonMap);
+      case .covers:
+        covers.import(jsonObject, source);
+      case .dynamicAlbums:
+        dynamicAlbums.import(jsonObject);
+      case .favourites:
+        favourites.import(jsonObject, source);
+      case .settings:
+        await settings.import(jsonObject);
         albumGrouping.setGroups(settings.albumGroups);
         tagGrouping.setGroups(settings.tagGroups);
     }

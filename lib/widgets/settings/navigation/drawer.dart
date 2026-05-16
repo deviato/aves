@@ -1,7 +1,10 @@
 import 'package:aves/model/filters/container/album_group.dart';
 import 'package:aves/model/filters/filters.dart';
+import 'package:aves/model/filters/mime.dart';
 import 'package:aves/model/filters/recent.dart';
+import 'package:aves/model/filters/trash.dart';
 import 'package:aves/model/settings/settings.dart';
+import 'package:aves/ref/mime_types.dart';
 import 'package:aves/widgets/common/basic/scaffold.dart';
 import 'package:aves/widgets/common/extensions/build_context.dart';
 import 'package:aves/widgets/common/search/page.dart';
@@ -12,7 +15,7 @@ import 'package:aves/widgets/filter_grids/places_page.dart';
 import 'package:aves/widgets/filter_grids/tags_page.dart';
 import 'package:aves/widgets/navigation/drawer/app_drawer.dart';
 import 'package:aves/widgets/navigation/drawer/tile.dart';
-import 'package:aves/widgets/search/search_delegate.dart';
+import 'package:aves/widgets/search/collection_search_delegate.dart';
 import 'package:aves/widgets/settings/navigation/drawer_tab_albums.dart';
 import 'package:aves/widgets/settings/navigation/drawer_tab_fixed.dart';
 import 'package:flutter/material.dart';
@@ -23,7 +26,9 @@ class NavigationDrawerEditorPage extends StatefulWidget {
   static final List<CollectionFilter?> collectionFilterOptions = [
     null,
     RecentlyAddedFilter.instance,
+    TrashFilter.instance,
     ...CollectionSearchDelegate.typeFilters,
+    MimeFilter(MimeTypes.svg),
   ];
   static const List<String> pageOptions = [
     AlbumListPage.routeName,
@@ -53,14 +58,17 @@ class _NavigationDrawerEditorPageState extends State<NavigationDrawerEditorPage>
     final userTypeLinks = settings.drawerTypeBookmarks;
     _visibleTypes.addAll(userTypeLinks);
     _typeItems.addAll(userTypeLinks);
-    _typeItems.addAll(NavigationDrawerEditorPage.collectionFilterOptions.where((v) => !userTypeLinks.contains(v)));
-
-    _albumItems.addAll(AppDrawer.effectiveAlbumBookmarks(context));
+    _typeItems.addAll(NavigationDrawerEditorPage.collectionFilterOptions.where((v) => !userTypeLinks.contains(v) && v != TrashFilter.instance));
 
     final userPageLinks = settings.drawerPageBookmarks;
     _visiblePages.addAll(userPageLinks);
     _pageItems.addAll(userPageLinks);
     _pageItems.addAll(NavigationDrawerEditorPage.pageOptions.where((v) => !userPageLinks.contains(v)));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // delayed as `context` should not be used within `initState`
+      _albumItems.addAll(AppDrawer.effectiveAlbumBookmarks(context));
+    });
   }
 
   @override

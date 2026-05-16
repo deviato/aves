@@ -67,6 +67,10 @@ class NamingPattern {
           }
         case NameNamingProcessor.key:
           processors.add(const NameNamingProcessor());
+        case WidthNamingProcessor.key:
+          processors.add(WidthNamingProcessor());
+        case HeightNamingProcessor.key:
+          processors.add(HeightNamingProcessor());
         case TagsNamingProcessor.key:
           processors.add(TagsNamingProcessor(processorOptions?.trim() ?? ''));
         default:
@@ -136,7 +140,10 @@ class NamingPattern {
 abstract class NamingProcessor extends Equatable {
   const NamingProcessor();
 
-  String? process(AvesEntry entry, int index, Map<String, dynamic> fieldValues);
+  @override
+  List<Object?> get props => [];
+
+  String? process(AvesEntry entry, int index, Map<String, Object?> fieldValues);
 
   Set<MetadataField> getRequiredFields() => {};
 }
@@ -151,7 +158,7 @@ class LiteralNamingProcessor extends NamingProcessor {
   const LiteralNamingProcessor(this.text);
 
   @override
-  String? process(AvesEntry entry, int index, Map<String, dynamic> fieldValues) => text;
+  String? process(AvesEntry entry, int index, Map<String, Object?> fieldValues) => text;
 }
 
 @immutable
@@ -166,7 +173,7 @@ class DateNamingProcessor extends NamingProcessor {
   DateNamingProcessor(String pattern, String locale) : format = DateFormat(pattern, locale);
 
   @override
-  String? process(AvesEntry entry, int index, Map<String, dynamic> fieldValues) {
+  String? process(AvesEntry entry, int index, Map<String, Object?> fieldValues) {
     final date = entry.bestDate;
     return date != null ? format.format(date) : null;
   }
@@ -185,7 +192,7 @@ class TagsNamingProcessor extends NamingProcessor {
   TagsNamingProcessor(String separator) : separator = separator.isEmpty ? defaultSeparator : separator;
 
   @override
-  String? process(AvesEntry entry, int index, Map<String, dynamic> fieldValues) {
+  String? process(AvesEntry entry, int index, Map<String, Object?> fieldValues) {
     return entry.tags.join(separator);
   }
 }
@@ -213,7 +220,7 @@ class MetadataFieldNamingProcessor extends NamingProcessor {
   Set<MetadataField> getRequiredFields() => {field}.nonNulls.toSet();
 
   @override
-  String? process(AvesEntry entry, int index, Map<String, dynamic> fieldValues) {
+  String? process(AvesEntry entry, int index, Map<String, Object?> fieldValues) {
     return fieldValues[field?.toPlatform]?.toString();
   }
 }
@@ -222,13 +229,30 @@ class MetadataFieldNamingProcessor extends NamingProcessor {
 class NameNamingProcessor extends NamingProcessor {
   static const key = 'name';
 
-  @override
-  List<Object?> get props => [];
-
   const NameNamingProcessor();
 
   @override
-  String? process(AvesEntry entry, int index, Map<String, dynamic> fieldValues) => entry.filenameWithoutExtension;
+  String? process(AvesEntry entry, int index, Map<String, Object?> fieldValues) => entry.filenameWithoutExtension;
+}
+
+@immutable
+class WidthNamingProcessor extends NamingProcessor {
+  static const key = 'width';
+
+  @override
+  String? process(AvesEntry entry, int index, Map<String, Object?> fieldValues) {
+    return '${entry.displaySize.width.toInt()}';
+  }
+}
+
+@immutable
+class HeightNamingProcessor extends NamingProcessor {
+  static const key = 'height';
+
+  @override
+  String? process(AvesEntry entry, int index, Map<String, Object?> fieldValues) {
+    return '${entry.displaySize.height.toInt()}';
+  }
 }
 
 @immutable
@@ -249,7 +273,7 @@ class CounterNamingProcessor extends NamingProcessor {
   });
 
   @override
-  String? process(AvesEntry entry, int index, Map<String, dynamic> fieldValues) => '${index + start}'.padLeft(padding, '0');
+  String? process(AvesEntry entry, int index, Map<String, Object?> fieldValues) => '${index + start}'.padLeft(padding, '0');
 }
 
 @immutable
@@ -271,7 +295,7 @@ class HashNamingProcessor extends NamingProcessor {
   Set<MetadataField> getRequiredFields() => {function}.nonNulls.toSet();
 
   @override
-  String? process(AvesEntry entry, int index, Map<String, dynamic> fieldValues) {
+  String? process(AvesEntry entry, int index, Map<String, Object?> fieldValues) {
     return fieldValues[function?.toPlatform]?.toString();
   }
 }

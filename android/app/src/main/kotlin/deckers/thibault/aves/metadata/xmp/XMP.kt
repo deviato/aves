@@ -20,10 +20,9 @@ import deckers.thibault.aves.utils.ContextUtils.queryContentPropValue
 import deckers.thibault.aves.utils.LogUtils
 import deckers.thibault.aves.utils.MemoryUtils
 import deckers.thibault.aves.utils.MimeTypes
+import deckers.thibault.aves.utils.MimeTypes.isIsoBMFFImage
 import deckers.thibault.aves.utils.StorageUtils
-import org.mp4parser.IsoFile
 import org.mp4parser.boxes.UserBox
-import java.io.FileInputStream
 import java.util.TimeZone
 
 object XMP {
@@ -66,19 +65,19 @@ object XMP {
 
     private val PMTM_IS_PANO360_PROP_NAME = XMPPropName(PMTM_NS_URI, "IsPano360")
 
-    // as of `metadata-extractor` v2.18.0, XMP is not discovered in HEIC images,
+    // as of `metadata-extractor` v2.18.0, XMP is not discovered in AVIF/HEIC images,
     // so we fall back to the native content resolver, if possible
-    fun checkHeic(
+    fun checkIsoBMFFImage(
         context: Context,
         mimeType: String,
         uri: Uri,
         foundXmp: Boolean,
         processXmp: (xmpMeta: XMPMeta) -> Unit,
     ) {
-        if (MimeTypes.isHeic(mimeType) && !foundXmp && StorageUtils.isMediaStoreContentUri(uri) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (!foundXmp && isIsoBMFFImage(mimeType) && StorageUtils.isMediaStoreContentUri(uri) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
                 val xmpBytes = context.queryContentPropValue(uri, mimeType, MediaStore.MediaColumns.XMP)
-                if (xmpBytes is ByteArray && xmpBytes.size > 0) {
+                if (xmpBytes is ByteArray && xmpBytes.isNotEmpty()) {
                     val xmpMeta = XMPMetaFactory.parseFromBuffer(xmpBytes, SafeXmpReader.PARSE_OPTIONS)
                     processXmp(xmpMeta)
                 }
@@ -98,27 +97,18 @@ object XMP {
     ) {
         if (mimeType != MimeTypes.MP4) return
         try {
-            // we can skip uninteresting boxes with a seekable data source
-            val pfd = StorageUtils.openInputFileDescriptor(context, uri) ?: throw Exception("failed to open file descriptor for uri=$uri")
-            pfd.use {
-                FileInputStream(it.fileDescriptor).use { stream ->
-                    stream.channel.use { channel ->
-                        // creating `IsoFile` with a `File` or a `File.inputStream()` yields `No such device`
-                        IsoFile(channel, Mp4ParserHelper.metadataBoxParser()).use { isoFile ->
-                            isoFile.processBoxes(UserBox::class.java, true) { box, _ ->
-                                val boxSize = box.size
-                                if (MemoryUtils.canAllocate(boxSize)) {
-                                    val bytes = box.toBytes()
-                                    val payload = bytes.copyOfRange(8, bytes.size)
+            Mp4ParserHelper.consumeIso(context, uri, Mp4ParserHelper.metadataBoxParser()) { isoFile ->
+                isoFile.processBoxes(UserBox::class.java, true) { box, _ ->
+                    val boxSize = box.size
+                    if (MemoryUtils.canAllocate(boxSize)) {
+                        val bytes = box.toBytes()
+                        val payload = bytes.copyOfRange(8, bytes.size)
 
-                                    val metadata = com.drew.metadata.Metadata()
-                                    SafeMp4UuidBoxHandler(metadata).processBox("", payload, -1, null)
-                                    processDirs(metadata.directories.filter { dir -> dir.tagCount > 0 }.toList())
-                                } else {
-                                    Log.w(LOG_TAG, "MP4 box too large at $boxSize bytes, for mimeType=$mimeType uri=$uri")
-                                }
-                            }
-                        }
+                        val metadata = com.drew.metadata.Metadata()
+                        SafeMp4UuidBoxHandler(metadata).processBox("", payload, -1, null)
+                        processDirs(metadata.directories.filter { dir -> dir.tagCount > 0 }.toList())
+                    } else {
+                        Log.w(LOG_TAG, "MP4 box too large at $boxSize bytes, for mimeType=$mimeType uri=$uri")
                     }
                 }
             }
@@ -146,7 +136,7 @@ object XMP {
         } catch (e: XMPException) {
             if (e.errorCode != XMPError.BADSCHEMA) {
                 // `BADSCHEMA` code is reported when we check a property
-                // from a non standard namespace, and that namespace is not declared in the XMP
+                // from a non-standard namespace, and that namespace is not declared in the XMP
                 Log.w(LOG_TAG, "failed to check HDR props from XMP", e)
             }
         }
@@ -165,7 +155,7 @@ object XMP {
         } catch (e: XMPException) {
             if (e.errorCode != XMPError.BADSCHEMA) {
                 // `BADSCHEMA` code is reported when we check a property
-                // from a non standard namespace, and that namespace is not declared in the XMP
+                // from a non-standard namespace, and that namespace is not declared in the XMP
                 Log.w(LOG_TAG, "failed to check Photomatix panorama props from XMP", e)
             }
         }
@@ -193,7 +183,7 @@ object XMP {
         val schema = prop.nsUri
         val propName = prop.toString()
         val count = countArrayItems(schema, propName)
-        return (1 until count + 1).map { getArrayItem(schema, propName, it).value }
+        return (1..count).map { getArrayItem(schema, propName, it).value }
     }
 
     fun XMPMeta.getSafeInt(prop: XMPPropName, save: (value: Int) -> Unit) {

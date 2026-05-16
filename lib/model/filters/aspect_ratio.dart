@@ -28,21 +28,21 @@ class AspectRatioFilter extends CollectionFilter {
     }
   }
 
-  factory AspectRatioFilter.fromMap(Map<String, dynamic> json) {
+  factory AspectRatioFilter.fromMap(Map<String, Object?> json) {
     return AspectRatioFilter(
       json['threshold'] as double,
       json['op'] as String,
-      reversed: json['reversed'] ?? false,
+      reversed: json['reversed'] as bool? ?? false,
     );
   }
 
   @override
-  Map<String, dynamic> toMap() => {
-        'type': type,
-        'threshold': threshold,
-        'op': op,
-        'reversed': reversed,
-      };
+  Map<String, Object?> toMap() => {
+    'type': type,
+    'threshold': threshold,
+    'op': op,
+    'reversed': reversed,
+  };
 
   @override
   EntryPredicate get positiveTest => _test;

@@ -159,21 +159,23 @@ class _QuickActionEditorBodyState<T extends Object> extends State<QuickActionEdi
   void initState() {
     super.initState();
     controller._currentItems = controller.load().toList();
-    _subscriptions.add(controller.events.listen((e) {
-      switch (e) {
-        case _ItemAddedEvent():
-          _animatedListKey.currentState!.insertItem(
-            e.index,
-            duration: _listAnimation,
-          );
-        case _ItemRemovedEvent():
-          _animatedListKey.currentState!.removeItem(
-            e.index,
-            (context, animation) => DraggedPlaceholder(child: _buildQuickActionButton(e.item, animation)),
-            duration: _listAnimation,
-          );
-      }
-    }));
+    _subscriptions.add(
+      controller.events.listen((e) {
+        switch (e) {
+          case _ItemAddedEvent():
+            _animatedListKey.currentState!.insertItem(
+              e.index,
+              duration: _listAnimation,
+            );
+          case _ItemRemovedEvent():
+            _animatedListKey.currentState!.removeItem(
+              e.index,
+              (context, animation) => DraggedPlaceholder(child: _buildQuickActionButton(e.item, animation)),
+              duration: _listAnimation,
+            );
+        }
+      }),
+    );
   }
 
   @override
@@ -305,8 +307,8 @@ class _QuickActionEditorBodyState<T extends Object> extends State<QuickActionEdi
                         },
                       ),
                     ),
-                    AnimatedBuilder(
-                      animation: controller,
+                    ListenableBuilder(
+                      listenable: controller,
                       builder: (context, child) => _quickActions.isEmpty
                           ? Center(
                               child: Text(
@@ -339,11 +341,13 @@ class _QuickActionEditorBodyState<T extends Object> extends State<QuickActionEdi
                 final allAvailableActions = widget.allAvailableActions;
                 final maxWidth = constraints.maxWidth;
                 final maxHeight = allAvailableActions
-                    .map((page) => AvailableActionPanel.heightFor(
-                          context,
-                          page.map((v) => widget.actionText(context, v)).toList(),
-                          maxWidth,
-                        ))
+                    .map(
+                      (page) => AvailableActionPanel.heightFor(
+                        context,
+                        page.map((v) => widget.actionText(context, v)).toList(),
+                        maxWidth,
+                      ),
+                    )
                     .max;
                 return Column(
                   children: [
@@ -366,17 +370,19 @@ class _QuickActionEditorBodyState<T extends Object> extends State<QuickActionEdi
                       child: PageView(
                         controller: _availableActionPageController,
                         children: allAvailableActions
-                            .map((allActions) => AvailableActionPanel<T>(
-                                  allActions: allActions,
-                                  quickActions: _quickActions,
-                                  quickActionsChangeNotifier: controller,
-                                  panelHighlight: _availableActionHighlight,
-                                  draggedQuickAction: _draggedQuickAction,
-                                  draggedAvailableAction: _draggedAvailableAction,
-                                  removeQuickAction: _removeQuickAction,
-                                  actionIcon: widget.actionIcon,
-                                  actionText: widget.actionText,
-                                ))
+                            .map(
+                              (allActions) => AvailableActionPanel<T>(
+                                allActions: allActions,
+                                quickActions: _quickActions,
+                                quickActionsChangeNotifier: controller,
+                                panelHighlight: _availableActionHighlight,
+                                draggedQuickAction: _draggedQuickAction,
+                                draggedAvailableAction: _draggedAvailableAction,
+                                removeQuickAction: _removeQuickAction,
+                                actionIcon: widget.actionIcon,
+                                actionText: widget.actionText,
+                              ),
+                            )
                             .toList(),
                       ),
                     ),
@@ -401,11 +407,11 @@ class _QuickActionEditorBodyState<T extends Object> extends State<QuickActionEdi
     final contained = currentIndex != -1;
     int? targetIndex;
     switch (placement) {
-      case QuickActionPlacement.header:
+      case .header:
         targetIndex = 0;
-      case QuickActionPlacement.footer:
+      case .footer:
         targetIndex = _quickActions.length - (contained ? 1 : 0);
-      case QuickActionPlacement.action:
+      case .action:
         targetIndex = _quickActions.indexOf(overAction!);
     }
     if (currentIndex == targetIndex) return false;
@@ -438,8 +444,8 @@ class _QuickActionEditorBodyState<T extends Object> extends State<QuickActionEdi
       ),
     );
 
-    child = AnimatedBuilder(
-      animation: Listenable.merge([_draggedQuickAction, _draggedAvailableAction]),
+    child = ListenableBuilder(
+      listenable: Listenable.merge([_draggedQuickAction, _draggedAvailableAction]),
       builder: (context, child) {
         final dragged = _draggedQuickAction.value == action || _draggedAvailableAction.value == action;
         if (dragged) {

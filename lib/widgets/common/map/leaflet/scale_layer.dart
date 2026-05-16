@@ -68,21 +68,22 @@ class ScaleLayerWidget extends StatelessWidget {
     final map = MapCamera.of(context);
     final center = map.center;
     final latitude = center.latitude.abs();
-    final level = map.zoom.round() +
+    final level =
+        map.zoom.round() +
         (latitude > 80
             ? 4
             : latitude > 60
-                ? 3
-                : 2);
+            ? 3
+            : 2);
     final scaleLevel = level.clamp(0, 20);
     late final double distanceMeters;
     late final String displayDistance;
     switch (options.unitSystem) {
-      case UnitSystem.metric:
+      case .metric:
         // meters
         distanceMeters = scaleMeters[scaleLevel];
         displayDistance = distanceMeters >= metersInAKilometer ? '${(distanceMeters / metersInAKilometer).toStringAsFixed(0)} km' : '${distanceMeters.toStringAsFixed(0)} m';
-      case UnitSystem.imperial:
+      case .imperial:
         if (scaleLevel < 15) {
           // miles
           final distanceMiles = scaleMeters[scaleLevel + 1] / 1000;
@@ -96,10 +97,10 @@ class ScaleLayerWidget extends StatelessWidget {
         }
     }
 
-    final start = map.project(center);
+    final start = map.projectAtZoom(center);
     final targetPoint = _distanceCalculator.offset(center, distanceMeters, 90);
-    final end = map.project(targetPoint);
-    final width = max(0, end.x - start.x).toDouble();
+    final end = map.projectAtZoom(targetPoint);
+    final width = max(0, end.dx - start.dx).toDouble();
 
     return options.builder(width, displayDistance);
   }
@@ -139,7 +140,7 @@ class ScaleBar extends StatelessWidget {
                   color: fillColor,
                   fontSize: 11,
                 ),
-              )
+              ),
             ],
             outlineWidth: outlineWidth * 2,
             outlineColor: outlineColor,
@@ -149,10 +150,12 @@ class ScaleBar extends StatelessWidget {
             width: width,
             decoration: const BoxDecoration(
               color: fillColor,
-              border: Border.fromBorderSide(BorderSide(
-                color: outlineColor,
-                width: outlineWidth,
-              )),
+              border: Border.fromBorderSide(
+                BorderSide(
+                  color: outlineColor,
+                  width: outlineWidth,
+                ),
+              ),
               borderRadius: BorderRadius.all(Radius.circular(8)),
             ),
           ),

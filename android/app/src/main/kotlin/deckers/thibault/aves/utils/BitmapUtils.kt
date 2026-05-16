@@ -28,7 +28,7 @@ object BitmapUtils {
     private const val MAX_10_BITS_FLOAT = 0x3ff.toFloat()
 
     private const val FORMAT_BYTE_ENCODED: Int = 0xCA
-    val FORMAT_BYTE_ENCODED_AS_BYTES: ByteArray = ByteArray(1) { pos -> FORMAT_BYTE_ENCODED.toByte() }
+    val FORMAT_BYTE_ENCODED_AS_BYTES: ByteArray = ByteArray(1) { _ -> FORMAT_BYTE_ENCODED.toByte() }
     private const val FORMAT_BYTE_DECODED: Byte = 0xFE.toByte()
     private const val RAW_BYTES_TRAILER_LENGTH = INT_BYTE_SIZE * 2 + 1
 
@@ -39,13 +39,26 @@ object BitmapUtils {
     private const val BPP_RGBA_1010102 = 4
     private const val BPP_RGBA_F16 = 8
 
+    fun Bitmap.describe(): String {
+        return "{${
+            arrayListOf(
+                "${width}x${height}",
+                "bytes=$byteCount",
+                "config=$config",
+            ).apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) add("cs=${colorSpace}")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) add("hasGainmap=${hasGainmap()}")
+            }.joinToString(",")
+        }}"
+    }
+
     private fun getBytePerPixel(config: Bitmap.Config?): Int {
         return when (config) {
             Bitmap.Config.ALPHA_8 -> BPP_ALPHA_8
             Bitmap.Config.RGB_565 -> BPP_RGB_565
             Bitmap.Config.ARGB_8888 -> BPP_ARGB_8888
             else -> {
-                return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && config == Bitmap.Config.RGBA_F16) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && config == Bitmap.Config.RGBA_F16) {
                     BPP_RGBA_F16
                 } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && config == Bitmap.Config.RGBA_1010102) {
                     BPP_RGBA_1010102

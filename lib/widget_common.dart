@@ -7,6 +7,7 @@ import 'package:aves/model/settings/enums/widget_outline.dart';
 import 'package:aves/model/settings/settings.dart';
 import 'package:aves/model/source/collection_lens.dart';
 import 'package:aves/model/source/media_store_source.dart';
+import 'package:aves/services/common/channel.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:aves/utils/android_file_utils.dart';
 import 'package:aves/widgets/home_widget.dart';
@@ -15,13 +16,13 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-const _widgetDrawChannel = MethodChannel('deckers.thibault/aves/widget_draw');
+const _widgetDrawChannel = AvesMethodChannel('deckers.thibault/aves/widget_draw');
 
 void widgetMainCommon(AppFlavor flavor) async {
   debugPrint('Widget main start');
   WidgetsFlutterBinding.ensureInitialized();
   initPlatformServices();
-  await settings.init(monitorPlatformSettings: false);
+  await settings.init(monitorPlatformSettings: false, shouldSanitize: false);
   await reportService.init();
 
   debugPrint('Widget channel method handling setup');
@@ -38,16 +39,19 @@ void widgetMainCommon(AppFlavor flavor) async {
   });
 }
 
-Future<Map<String, dynamic>> _drawWidget(dynamic args) async {
-  final widgetId = args['widgetId'] as int;
-  final sizesDip = (args['sizesDip'] as List).cast<Map>().map((kv) {
+Future<Map<String, Object>> _drawWidget(Object? args) async {
+  if (args is! Map) return {};
+
+  final argMap = args.cast<String, Object?>();
+  final widgetId = argMap['widgetId'] as int;
+  final sizesDip = (argMap['sizesDip'] as List).cast<Map>().map((kv) {
     return Size(kv['widthDip'] as double, kv['heightDip'] as double);
   }).toList();
-  final cornerRadiusPx = args['cornerRadiusPx'] as double?;
-  final devicePixelRatio = args['devicePixelRatio'] as double;
-  final drawEntryImage = args['drawEntryImage'] as bool;
-  final reuseEntry = args['reuseEntry'] as bool;
-  final isSystemThemeDark = args['isSystemThemeDark'] as bool;
+  final cornerRadiusPx = argMap['cornerRadiusPx'] as double?;
+  final devicePixelRatio = argMap['devicePixelRatio'] as double;
+  final drawEntryImage = argMap['drawEntryImage'] as bool;
+  final reuseEntry = argMap['reuseEntry'] as bool;
+  final isSystemThemeDark = argMap['isSystemThemeDark'] as bool;
 
   await reportService.log('Draw widget with widgetId=$widgetId');
 
@@ -59,7 +63,7 @@ Future<Map<String, dynamic>> _drawWidget(dynamic args) async {
     entry: entry,
     devicePixelRatio: devicePixelRatio,
   );
-  final bytesBySizeDip = <Map<String, dynamic>>[];
+  final bytesBySizeDip = <Map<String, Object>>[];
   await Future.forEach(sizesDip, (sizeDip) async {
     final bytes = await painter.drawWidget(
       sizeDip: sizeDip,
@@ -102,9 +106,9 @@ Future<AvesEntry?> _getWidgetEntry(int widgetId, bool reuseEntry) async {
 
   final entries = CollectionLens(source: source, filters: filters).sortedEntries;
   switch (settings.getWidgetDisplayedItem(widgetId)) {
-    case WidgetDisplayedItem.random:
+    case .random:
       entries.shuffle();
-    case WidgetDisplayedItem.mostRecent:
+    case .mostRecent:
       entries.sort(AvesEntrySort.compareByDate);
   }
   final entry = entries.firstOrNull;

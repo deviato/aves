@@ -15,8 +15,12 @@
         android:required="false" />
 
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_IMAGES"
+        tools:ignore="PhotoAndVideoPolicy" />
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_VIDEO"
+        tools:ignore="PhotoAndVideoPolicy" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -70,12 +74,6 @@
     `android.permission.USE_BIOMETRIC` by `io.flutter.plugins.localauth`, to unlock vaults (API >=28)
     -->
 
-    <!--
-    allow install on API 21, despite the `minSdk` declared in dependencies:
-    - FFmpegKit for Flutter is from API 24 (when not LTS)
-    -->
-    <uses-sdk tools:overrideLibrary="com.arthenica.ffmpegkit.flutter" />
-
     <!-- from Android 11 (API 30), we should define <queries> to make other apps visible to this app -->
     <queries>
         <intent>
@@ -102,17 +100,12 @@
         </intent>
     </queries>
 
-    <!--
-    as of Flutter v3.22.2, predictive back gesture does not work
-    as expected when extending `FlutterFragmentActivity`
-    so we disable `enableOnBackInvokedCallback`
-    -->
     <application
         android:allowBackup="true"
         android:appCategory="image"
         android:banner="@drawable/banner"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:enableOnBackInvokedCallback="false"
+        android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="@xml/full_backup_content"
         android:fullBackupOnly="true"
         android:icon="@mipmap/ic_launcher"
@@ -120,7 +113,7 @@
         android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        tools:targetApi="tiramisu">
+        tools:targetApi="33">
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -128,19 +121,25 @@
             android:hardwareAccelerated="true"
             android:launchMode="singleTop"
             android:supportsPictureInPicture="true"
+            android:taskAffinity=""
             android:theme="@style/NormalTheme"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
+                <!-- main entry point, navigating to home page -->
                 <action android:name="android.intent.action.MAIN" />
 
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.APP_GALLERY" />
             </intent-filter>
             <intent-filter tools:ignore="AppLinkUrlError">
+                <!-- viewer for media with no specified scheme -->
                 <action android:name="android.intent.action.GET_CONTENT" />
                 <action android:name="android.intent.action.PICK" />
                 <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.provider.action.PICK_IMAGES" />
                 <action android:name="android.provider.action.REVIEW" />
                 <action android:name="android.provider.action.REVIEW_SECURE" />
                 <action android:name="com.android.camera.action.REVIEW" />
@@ -158,10 +157,12 @@
                 <!-- no specified scheme -->
             </intent-filter>
             <intent-filter tools:ignore="AppLinkUrlError">
+                <!-- viewer for media with a specified scheme -->
                 <action android:name="android.intent.action.GET_CONTENT" />
                 <action android:name="android.intent.action.PICK" />
                 <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.provider.action.PICK_IMAGES" />
                 <action android:name="android.provider.action.REVIEW" />
                 <action android:name="android.provider.action.REVIEW_SECURE" />
                 <action android:name="com.android.camera.action.REVIEW" />
@@ -180,6 +181,7 @@
                 <data android:scheme="file" />
             </intent-filter>
             <intent-filter>
+                <!-- `geo` URI handling (view on map, or fill location editor) -->
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
@@ -210,6 +212,13 @@
             <meta-data
                 android:name="android.app.searchable"
                 android:resource="@xml/searchable" />
+            <!-- launch size in desktop environments, like ChromeOS -->
+            <meta-data
+                android:name="WindowManagerPreference:FreeformWindowSize"
+                android:value="maximize" />
+            <meta-data
+                android:name="WindowManagerPreference:FreeformWindowOrientation"
+                android:value="landscape" />
         </activity>
 
         <activity
@@ -330,8 +339,20 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- panorama rendering with `flutter_cube` is broken with Impeller, cf #1961 -->
         <meta-data
             android:name="io.flutter.embedding.android.EnableImpeller"
             android:value="false" />
     </application>
+    <!-- Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
+        </intent>
+    </queries>
 </manifest>

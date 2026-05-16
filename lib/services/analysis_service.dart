@@ -7,6 +7,7 @@ import 'package:aves/model/settings/settings.dart';
 import 'package:aves/model/source/analysis_controller.dart';
 import 'package:aves/model/source/collection_source.dart';
 import 'package:aves/model/source/media_store_source.dart';
+import 'package:aves/services/common/channel.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:aves/utils/android_file_utils.dart';
 import 'package:aves/view/view.dart';
@@ -18,11 +19,11 @@ import 'package:leak_tracker/leak_tracker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class AnalysisService {
-  static const _platform = MethodChannel('deckers.thibault/aves/analysis');
+  static const _platform = AvesMethodChannel('deckers.thibault/aves/analysis');
 
   static Future<void> registerCallback() async {
     try {
-      await _platform.invokeMethod('registerCallback', <String, dynamic>{
+      await _platform.invokeMethod('registerCallback', <String, Object?>{
         // callback needs to be annotated with `@pragma('vm:entry-point')` to work in release mode
         'callbackHandle': PluginUtilities.getCallbackHandle(_init)?.toRawHandle(),
       });
@@ -38,7 +39,7 @@ class AnalysisService {
 
     await reportService.log('Start analysis service${entryIds != null ? ' for ${entryIds.length} items' : ''}');
     try {
-      await _platform.invokeMethod('startAnalysis', <String, dynamic>{
+      await _platform.invokeMethod('startAnalysis', <String, Object?>{
         'entryIds': entryIds,
         'force': force,
       });
@@ -48,7 +49,7 @@ class AnalysisService {
   }
 }
 
-const _channel = MethodChannel('deckers.thibault/aves/analysis_service_background');
+const _channel = AvesMethodChannel('deckers.thibault/aves/analysis_service_background');
 
 @pragma('vm:entry-point')
 Future<void> _init() async {
@@ -58,7 +59,7 @@ Future<void> _init() async {
   await localMediaDb.init();
   await device.init();
   await mobileServices.init();
-  await settings.init(monitorPlatformSettings: false);
+  await settings.init(monitorPlatformSettings: false, shouldSanitize: false);
   await reportService.init();
   videoMetadataFetcher.init();
 
@@ -132,7 +133,7 @@ class Analyzer with WidgetsBindingObserver {
     reportService.log('Analyzer memory pressure');
   }
 
-  Future<void> start(dynamic args) async {
+  Future<void> start(Object? args) async {
     List<int>? entryIds;
     var force = false;
     if (args is Map) {
@@ -167,12 +168,12 @@ class Analyzer with WidgetsBindingObserver {
 
   Future<void> _onServiceStateChanged() async {
     switch (serviceState) {
-      case AnalyzerState.running:
+      case .running:
         break;
-      case AnalyzerState.stopping:
+      case .stopping:
         await _stopPlatformService();
         _serviceStateNotifier.value = AnalyzerState.stopped;
-      case AnalyzerState.stopped:
+      case .stopped:
         _controller?.enableStopSignal();
         _stopUpdateTimer();
     }
@@ -194,7 +195,7 @@ class Analyzer with WidgetsBindingObserver {
     final progressive = progress.total != 0 && sourceState != SourceState.locatingCountries;
 
     try {
-      await _channel.invokeMethod('updateNotification', <String, dynamic>{
+      await _channel.invokeMethod('updateNotification', <String, Object?>{
         'title': title,
         'message': progressive ? '${progress.done}/${progress.total}' : null,
       });

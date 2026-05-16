@@ -1204,8 +1204,6 @@
             }
         }
     },
-    "settingsShowBottomNavigationBar": "Amosar barra de navegación inferior",
-    "@settingsShowBottomNavigationBar": {},
     "settingsKeepScreenOnTile": "Manter pantalla acesa",
     "@settingsKeepScreenOnTile": {},
     "settingsKeepScreenOnDialogTitle": "Manter pantalla acesa",
@@ -1656,5 +1654,11 @@
     "mapStyleEditorDialogSubdomains": "Subdominios",
     "@mapStyleEditorDialogSubdomains": {},
     "mapStyleEditorDialogUserAgent": "User-Agent",
-    "@mapStyleEditorDialogUserAgent": {}
+    "@mapStyleEditorDialogUserAgent": {},
+    "settingsViewerShowZoomLevel": "Amosar nivel de zoom",
+    "@settingsViewerShowZoomLevel": {},
+    "settingsEnabled": "Activado",
+    "@settingsEnabled": {},
+    "settingsForced": "Forzado",
+    "@settingsForced": {}
 }

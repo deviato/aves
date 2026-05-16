@@ -19,11 +19,11 @@ class SectionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     const dim = 32.0;
     Widget buildDivider() => const SizedBox(
-          width: dim,
-          child: Divider(
-            thickness: AvesFilterChip.outlineWidth,
-          ),
-        );
+      width: dim,
+      child: Divider(
+        thickness: AvesFilterChip.outlineWidth,
+      ),
+    );
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -95,12 +95,20 @@ class InfoRowGroup extends StatefulWidget {
 
 class _InfoRowGroupState extends State<InfoRowGroup> {
   final List<String> _expandedKeys = [];
+  final Set<GestureRecognizer> _gestureRecognizers = {};
 
   Map<String, String> get keyValues => widget.info;
 
   int get maxValueLength => widget.maxValueLength;
 
   Map<String, InfoValueSpanBuilder> get spanBuilders => widget.spanBuilders;
+
+  @override
+  void dispose() {
+    _gestureRecognizers.forEach((v) => v.dispose());
+    _gestureRecognizers.clear();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -171,6 +179,7 @@ class _InfoRowGroupState extends State<InfoRowGroup> {
     )..layout(const BoxConstraints(), parentUsesSize: true);
     final width = paragraph.getMaxIntrinsicWidth(double.infinity);
     paragraph.dispose();
+
     return width;
   }
 
@@ -183,6 +192,7 @@ class _InfoRowGroupState extends State<InfoRowGroup> {
       value = '${value.substring(0, maxValueLength)}…';
       // show full value on tap
       recognizer = TapGestureRecognizer()..onTap = () => setState(() => _expandedKeys.add(key));
+      _gestureRecognizers.add(recognizer);
     }
 
     return [TextSpan(text: _buildTextValue(value), recognizer: recognizer)];

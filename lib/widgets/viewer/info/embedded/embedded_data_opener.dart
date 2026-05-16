@@ -41,15 +41,15 @@ class EmbeddedDataOpener extends StatelessWidget with FeedbackMixin {
   Future<void> _openEmbeddedData(BuildContext context, OpenEmbeddedDataNotification notification) async {
     late Map fields;
     switch (notification.source) {
-      case EmbeddedDataSource.googleDevice:
+      case .googleDevice:
         fields = await embeddedDataService.extractGoogleDeviceItem(entry, notification.dataUri!);
-      case EmbeddedDataSource.motionPhotoVideo:
+      case .motionPhotoVideo:
         fields = await embeddedDataService.extractMotionPhotoVideo(entry);
-      case EmbeddedDataSource.mpf:
+      case .mpf:
         fields = await embeddedDataService.extractJpegMpfItem(entry, notification.mpfId!);
-      case EmbeddedDataSource.videoCover:
+      case .videoCover:
         fields = await embeddedDataService.extractVideoEmbeddedPicture(entry);
-      case EmbeddedDataSource.xmp:
+      case .xmp:
         fields = await embeddedDataService.extractXmpDataProp(entry, notification.props, notification.mimeType);
     }
     AvesEntry.normalizeMimeTypeFields(fields);
@@ -62,14 +62,16 @@ class EmbeddedDataOpener extends StatelessWidget with FeedbackMixin {
 
     if (!MimeTypes.isImage(mimeType) && !MimeTypes.isVideo(mimeType)) {
       // open with another app
-      unawaited(appService.open(uri, mimeType, forceChooser: true).then((success) {
-        if (!success) {
-          // fallback to sharing, so that the file can be saved somewhere
-          appService.shareSingle(uri, mimeType).then((success) {
-            if (!success) showNoMatchingAppDialog(context);
-          });
-        }
-      }));
+      unawaited(
+        appService.open(uri, mimeType, forceChooser: true).then((success) {
+          if (!success) {
+            // fallback to sharing, so that the file can be saved somewhere
+            appService.shareSingle(uri, mimeType).then((success) {
+              if (!success) showNoMatchingAppDialog(context);
+            });
+          }
+        }),
+      );
       return;
     }
 

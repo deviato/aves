@@ -24,6 +24,7 @@ import 'package:aves/widgets/viewer/multipage/conductor.dart';
 import 'package:aves/widgets/viewer/video/conductor.dart';
 import 'package:aves_magnifier/aves_magnifier.dart';
 import 'package:aves_model/aves_model.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -112,12 +113,16 @@ class _ViewerVerticalPageViewState extends State<ViewerVerticalPageView> {
   }
 
   void _registerWidget(ViewerVerticalPageView widget) {
-    _subscriptions.add(widget.viewerController.showNextCommands.listen((event) {
-      _goToHorizontalPage(1, animate: true);
-    }));
-    _subscriptions.add(widget.viewerController.overlayCommands.listen((event) {
-      ToggleOverlayNotification(visible: event.visible).dispatch(context);
-    }));
+    _subscriptions.add(
+      widget.viewerController.showNextCommands.listen((event) {
+        _goToHorizontalPage(1, animate: true);
+      }),
+    );
+    _subscriptions.add(
+      widget.viewerController.overlayCommands.listen((event) {
+        ToggleOverlayNotification(visible: event.visible).dispatch(context);
+      }),
+    );
     widget.verticalPager.addListener(_onVerticalPageControllerChanged);
     widget.entryNotifier.addListener(_onEntryChanged);
     if (_oldEntry != entry) _onEntryChanged();
@@ -149,8 +154,8 @@ class _ViewerVerticalPageViewState extends State<ViewerVerticalPageView> {
           widget.onImagePageRequested();
           return true;
         },
-        child: AnimatedBuilder(
-          animation: verticalPager,
+        child: ListenableBuilder(
+          listenable: verticalPager,
           builder: (context, child) {
             return Visibility(
               visible: verticalPager.page! > 1,
@@ -247,6 +252,12 @@ class _ViewerVerticalPageViewState extends State<ViewerVerticalPageView> {
         );
       }
 
+      // handle mouse wheel to jump to previous/next item
+      child = Listener(
+        onPointerSignal: _onPointerSignal,
+        child: child,
+      );
+
       return FocusableActionDetector(
         autofocus: true,
         shortcuts: shortcuts,
@@ -259,31 +270,43 @@ class _ViewerVerticalPageViewState extends State<ViewerVerticalPageView> {
           TvShowMoreInfoIntent: CallbackAction<Intent>(onInvoke: (intent) => TvShowMoreInfoNotification().dispatch(context)),
           PlayPauseIntent: CallbackAction<PlayPauseIntent>(onInvoke: _onPlayPauseIntent),
           EntryActionIntent: CallbackAction<EntryActionIntent>(onInvoke: (intent) => _onEntryActionIntent(intent.action)),
-          ActivateIntent: CallbackAction<Intent>(onInvoke: (intent) {
-            if (useTvLayout) {
-              final _entry = entry;
-              if (_entry != null && _entry.isVideo) {
-                // address `TV-PC` requirement from https://developer.android.com/docs/quality-guidelines/tv-app-quality
-                final controller = context.read<VideoConductor>().getController(_entry);
-                if (controller != null) {
-                  VideoActionNotification(
-                    controller: controller,
-                    entry: _entry,
-                    action: EntryAction.videoTogglePlay,
-                  ).dispatch(context);
+          ActivateIntent: CallbackAction<Intent>(
+            onInvoke: (intent) {
+              if (useTvLayout) {
+                final _entry = entry;
+                if (_entry != null && _entry.isVideo) {
+                  // address `TV-PC` requirement from https://developer.android.com/docs/quality-guidelines/tv-app-quality
+                  final controller = context.read<VideoConductor>().getController(_entry);
+                  if (controller != null) {
+                    VideoActionNotification(
+                      controller: controller,
+                      entry: _entry,
+                      action: EntryAction.videoTogglePlay,
+                    ).dispatch(context);
+                  }
+                } else {
+                  const ToggleOverlayNotification().dispatch(context);
                 }
-              } else {
-                const ToggleOverlayNotification().dispatch(context);
               }
-            }
-            return null;
-          }),
+              return null;
+            },
+          ),
         },
         onFocusChange: (focused) => _isImageFocusedNotifier.value = focused,
         child: child,
       );
     }
     return const SizedBox();
+  }
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    // use the resolver so that the pager scrollable does not handle the pointer
+    GestureBinding.instance.pointerSignalResolver.register(event, (event) {
+      if (event is PointerScrollEvent && event.kind == PointerDeviceKind.mouse) {
+        final verticalDelta = event.scrollDelta.dy;
+        _goToHorizontalPage(verticalDelta.sign.round(), animate: false);
+      }
+    });
   }
 
   void _onEntryActionIntent(EntryAction action) {
@@ -382,11 +405,11 @@ class _ViewerVerticalPageViewState extends State<ViewerVerticalPageView> {
       if (controller != null) {
         bool toggle;
         switch (intent.type) {
-          case TvPlayPauseType.play:
+          case .play:
             toggle = !controller.isPlaying;
-          case TvPlayPauseType.pause:
+          case .pause:
             toggle = controller.isPlaying;
-          case TvPlayPauseType.toggle:
+          case .toggle:
             toggle = true;
         }
         if (toggle) {

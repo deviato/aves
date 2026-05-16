@@ -6,6 +6,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+@immutable
 class AppIconImage extends ImageProvider<AppIconImageKey> {
   const AppIconImage({
     required this.packageName,
@@ -19,11 +20,13 @@ class AppIconImage extends ImageProvider<AppIconImageKey> {
 
   @override
   Future<AppIconImageKey> obtainKey(ImageConfiguration configuration) {
-    return SynchronousFuture<AppIconImageKey>(AppIconImageKey(
-      packageName: packageName,
-      size: size,
-      scale: scale,
-    ));
+    return SynchronousFuture<AppIconImageKey>(
+      AppIconImageKey(
+        packageName: packageName,
+        size: size,
+        scale: scale,
+      ),
+    );
   }
 
   @override

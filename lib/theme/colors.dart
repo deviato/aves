@@ -3,9 +3,10 @@ import 'package:aves/model/covers.dart';
 import 'package:aves/model/settings/settings.dart';
 import 'package:aves/widgets/common/extensions/theme.dart';
 import 'package:aves_model/aves_model.dart';
+import 'package:aves_utils/aves_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:palette_generator/palette_generator.dart';
+import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:provider/provider.dart';
 
 class AColors {
@@ -23,6 +24,8 @@ class AvesColorsProvider extends StatelessWidget {
   final bool allowMonochrome;
   final Widget child;
 
+  static final Map<(AvesThemeColorMode, bool), AvesColorsData> _schemeCache = {};
+
   const AvesColorsProvider({
     super.key,
     this.allowMonochrome = true,
@@ -32,16 +35,18 @@ class AvesColorsProvider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ProxyProvider<Settings, AvesColorsData>(
-      update: (context, settings, __) {
+      update: (context, settings, _) {
         final isDark = Theme.of(context).isDark;
         var mode = settings.themeColorMode;
         if (!allowMonochrome && mode == AvesThemeColorMode.monochrome) {
           mode = AvesThemeColorMode.polychrome;
         }
-        return switch (mode) {
-          AvesThemeColorMode.monochrome => isDark ? _MonochromeOnDark() : _MonochromeOnLight(),
-          AvesThemeColorMode.polychrome => isDark ? NeonOnDark() : PastelOnLight(),
-        };
+        return _schemeCache.putIfAbsent((mode, isDark), () {
+          return switch (mode) {
+            .monochrome => isDark ? _MonochromeOnDark() : _MonochromeOnLight(),
+            .polychrome => isDark ? _NeonOnDark() : _PastelOnLight(),
+          };
+        });
       },
       child: child,
     );
@@ -59,34 +64,33 @@ abstract class AvesColorsData {
 
   Color? fromBrandColor(Color? color);
 
-  final Map<String, Color> _stringColors = {}, _appColors = {};
+  final Map<String, Future<Color>?> _appColors = {};
+  final Map<String, Color> _stringColors = {};
 
   Color fromString(String string) {
-    var color = _stringColors[string];
-    if (color == null) {
+    return _stringColors.putIfAbsent(string, () {
       final hash = string.codeUnits.fold<int>(0, (prev, v) => prev = v + ((prev << 5) - prev));
       final hue = (hash % 360).toDouble();
-      color = fromHue(hue);
-      _stringColors[string] = color;
-    }
-    return color;
+      return fromHue(hue);
+    });
   }
 
   Future<Color>? appColor(String album) {
-    if (_appColors.containsKey(album)) return SynchronousFuture(_appColors[album]!);
-
     final packageName = covers.effectiveAlbumPackage(album);
     if (packageName == null) return null;
 
-    return PaletteGenerator.fromImageProvider(
-      AppIconImage(packageName: packageName, size: 24),
-    ).then((palette) async {
-      // `dominantColor` is most representative but can have low contrast with a dark background
-      // `vibrantColor` is usually representative and has good contrast with a dark background
-      final color = palette.vibrantColor?.color ?? fromString(album);
-      _appColors[album] = color;
-      return color;
+    return _appColors.putIfAbsent(album, () {
+      return appColorFromPackageName(packageName);
     });
+  }
+
+  static Future<Color> appColorFromPackageName(String packageName) async {
+    final appIconImage = AppIconImage(packageName: packageName, size: 24);
+    final scheme = await ColorExtractor.getDynamicScheme(
+      provider: appIconImage,
+      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+    );
+    return Color(MaterialDynamicColors.primaryFixedDim.getArgb(scheme));
   }
 
   void clearAppColor(String album) => _appColors.remove(album);
@@ -173,7 +177,7 @@ class _MonochromeOnLight extends _Monochrome {
   Color get neutral => AvesColorsData._neutralOnLight;
 }
 
-class NeonOnDark extends AvesColorsData {
+class _NeonOnDark extends AvesColorsData {
   @override
   Color get neutral => AvesColorsData._neutralOnDark;
 
@@ -184,7 +188,7 @@ class NeonOnDark extends AvesColorsData {
   Color? fromBrandColor(Color? color) => color;
 }
 
-class PastelOnLight extends AvesColorsData {
+class _PastelOnLight extends AvesColorsData {
   @override
   Color get neutral => AvesColorsData._neutralOnLight;
 

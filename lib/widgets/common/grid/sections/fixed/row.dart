@@ -51,10 +51,10 @@ class RenderFixedExtentGridRow extends RenderBox with ContainerRenderObjectMixin
     required double height,
     required double spacing,
     required TextDirection textDirection,
-  })  : _width = width,
-        _height = height,
-        _spacing = spacing,
-        _textDirection = textDirection {
+  }) : _width = width,
+       _height = height,
+       _spacing = spacing,
+       _textDirection = textDirection {
     addAll(children);
   }
 
@@ -122,7 +122,7 @@ class RenderFixedExtentGridRow extends RenderBox with ContainerRenderObjectMixin
       size = constraints.smallest;
       return;
     }
-    size = Size(constraints.maxWidth, height);
+    size = Size(constraints.maxWidth, constraints.maxHeight);
     final childConstraints = BoxConstraints.tight(Size(width, height));
     final flipMainAxis = textDirection == TextDirection.rtl;
     var offset = Offset(flipMainAxis ? size.width - width : 0, 0);

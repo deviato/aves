@@ -53,48 +53,56 @@ class CollectionLens with ChangeNotifier {
     this.stackDevelopedRaws = true,
     this.fixedSort = false,
     this.fixedSelection,
-  })  : filters = (filters ?? {}).nonNulls.toSet(),
-        burstPatterns = settings.collectionBurstPatterns,
-        sectionFactor = settings.collectionSectionFactor,
-        sortFactor = settings.collectionSortFactor,
-        sortReverse = settings.collectionSortReverse {
+  }) : filters = (filters ?? {}).nonNulls.toSet(),
+       burstPatterns = settings.collectionBurstPatterns,
+       sectionFactor = settings.collectionSectionFactor,
+       sortFactor = settings.collectionSortFactor,
+       sortReverse = settings.collectionSortReverse {
     if (kFlutterMemoryAllocationsEnabled) ChangeNotifier.maybeDispatchObjectCreation(this);
     id ??= hashCode;
     if (listenToSource) {
       final sourceEvents = source.eventBus;
       _subscriptions.add(sourceEvents.on<EntryAddedEvent>().listen((e) => _onEntryAdded(e.entries)));
       _subscriptions.add(sourceEvents.on<EntryRemovedEvent>().listen((e) => _onEntryRemoved(e.entries)));
-      _subscriptions.add(sourceEvents.on<EntryMovedEvent>().listen((e) {
-        switch (e.type) {
-          case MoveType.copy:
-          case MoveType.export:
-            // refreshing new items is already handled via `EntryAddedEvent`s
-            break;
-          case MoveType.move:
-          case MoveType.fromBin:
-            refresh();
-          case MoveType.toBin:
-            _onEntryRemoved(e.entries);
-        }
-      }));
+      _subscriptions.add(
+        sourceEvents.on<EntryMovedEvent>().listen((e) {
+          switch (e.type) {
+            case .copy:
+            case .export:
+              // refreshing new items is already handled via `EntryAddedEvent`s
+              break;
+            case .move:
+            case .fromBin:
+              refresh();
+            case .toBin:
+              _onEntryRemoved(e.entries);
+          }
+        }),
+      );
       _subscriptions.add(sourceEvents.on<EntryRefreshedEvent>().listen((e) => refresh()));
       _subscriptions.add(sourceEvents.on<FilterVisibilityChangedEvent>().listen((e) => refresh()));
       _subscriptions.add(sourceEvents.on<CatalogMetadataChangedEvent>().listen((e) => refresh()));
-      _subscriptions.add(sourceEvents.on<AddressMetadataChangedEvent>().listen((e) {
-        if (this.filters.any((filter) => filter is LocationFilter)) {
-          refresh();
-        }
-      }));
+      _subscriptions.add(
+        sourceEvents.on<AddressMetadataChangedEvent>().listen((e) {
+          if (this.filters.any((filter) => filter is LocationFilter)) {
+            refresh();
+          }
+        }),
+      );
       favourites.addListener(_onFavouritesChanged);
     }
-    _subscriptions.add(settings.updateStream
-        .where((event) => [
+    _subscriptions.add(
+      settings.updateStream
+          .where(
+            (event) => [
               SettingKeys.collectionBurstPatternsKey,
               SettingKeys.collectionSortFactorKey,
               SettingKeys.collectionGroupFactorKey,
               SettingKeys.collectionSortReverseKey,
-            ].contains(event.key))
-        .listen((_) => _onSettingsChanged()));
+            ].contains(event.key),
+          )
+          .listen((_) => _onSettingsChanged()),
+    );
     refresh();
   }
 
@@ -115,14 +123,13 @@ class CollectionLens with ChangeNotifier {
     Set<CollectionFilter>? filters,
     bool? listenToSource,
     List<AvesEntry>? fixedSelection,
-  }) =>
-      CollectionLens(
-        source: source ?? this.source,
-        filters: filters ?? this.filters,
-        id: id,
-        listenToSource: listenToSource ?? this.listenToSource,
-        fixedSelection: fixedSelection ?? this.fixedSelection,
-      );
+  }) => CollectionLens(
+    source: source ?? this.source,
+    filters: filters ?? this.filters,
+    id: id,
+    listenToSource: listenToSource ?? this.listenToSource,
+    fixedSelection: fixedSelection ?? this.fixedSelection,
+  );
 
   void _disposeSyntheticEntries() {
     _syntheticEntries.forEach((v) => v.dispose());
@@ -145,24 +152,24 @@ class CollectionLens with ChangeNotifier {
     bool showAlbumHeaders() => !filters.any((v) => v is StoredAlbumFilter && !v.reversed);
 
     switch (sortFactor) {
-      case EntrySortFactor.date:
+      case .date:
         switch (sectionFactor) {
-          case EntrySectionFactor.none:
+          case .none:
             return false;
-          case EntrySectionFactor.album:
+          case .album:
             return showAlbumHeaders();
-          case EntrySectionFactor.month:
+          case .month:
             return true;
-          case EntrySectionFactor.day:
+          case .day:
             return true;
         }
-      case EntrySortFactor.name:
-      case EntrySortFactor.path:
+      case .name:
+      case .path:
         return showAlbumHeaders();
-      case EntrySortFactor.rating:
+      case .rating:
         return !filters.any((f) => f is RatingFilter);
-      case EntrySortFactor.size:
-      case EntrySortFactor.duration:
+      case .size:
+      case .duration:
         return false;
     }
   }
@@ -231,22 +238,23 @@ class CollectionLens with ChangeNotifier {
     final allRawEntries = _filteredSortedEntries.where((entry) => entry.isRaw).toSet();
     if (allRawEntries.isNotEmpty) {
       final allDevelopedEntries = _filteredSortedEntries.where((entry) => MimeTypes.developedRawImages.contains(entry.mimeType)).toSet();
-      final rawEntriesByDir = groupBy<AvesEntry, String?>(allRawEntries, (entry) => entry.directory);
+      final rawEntriesByDir = groupBy<AvesEntry, String?>(allRawEntries, (entry) => entry.directory).whereNotNullKey();
       rawEntriesByDir.forEach((dir, dirRawEntries) {
-        if (dir != null) {
-          final dirDevelopedEntries = allDevelopedEntries.where((entry) => entry.directory == dir).toSet();
-          for (final rawEntry in dirRawEntries) {
-            final rawFilename = rawEntry.filenameWithoutExtension;
-            final developedEntry = dirDevelopedEntries.firstWhereOrNull((entry) => entry.filenameWithoutExtension == rawFilename);
-            if (developedEntry != null) {
-              final stackEntry = rawEntry.copyWith(stackedEntries: [rawEntry, developedEntry]);
-              _syntheticEntries.add(stackEntry);
+        final dirDevelopedEntries = allDevelopedEntries.where((entry) => entry.directory == dir).toSet();
+        for (final rawEntry in dirRawEntries) {
+          final rawFilename = rawEntry.filenameWithoutExtension;
+          final developedEntry = dirDevelopedEntries.firstWhereOrNull((entry) => entry.filenameWithoutExtension == rawFilename);
+          if (developedEntry != null) {
+            final mainEntry = developedEntry;
+            final subEntry = rawEntry;
 
-              _filteredSortedEntries.remove(developedEntry);
-              final index = _filteredSortedEntries.indexOf(rawEntry);
-              _filteredSortedEntries.removeAt(index);
-              _filteredSortedEntries.insert(0, stackEntry);
-            }
+            final stackEntry = mainEntry.copyWith(stackedEntries: [mainEntry, subEntry]);
+            _syntheticEntries.add(stackEntry);
+
+            _filteredSortedEntries.remove(subEntry);
+            final index = _filteredSortedEntries.indexOf(mainEntry);
+            _filteredSortedEntries.removeAt(index);
+            _filteredSortedEntries.insert(0, stackEntry);
           }
         }
       });
@@ -257,17 +265,17 @@ class CollectionLens with ChangeNotifier {
     if (fixedSort) return;
 
     switch (sortFactor) {
-      case EntrySortFactor.date:
+      case .date:
         _filteredSortedEntries.sort(AvesEntrySort.compareByDate);
-      case EntrySortFactor.name:
+      case .name:
         _filteredSortedEntries.sort(AvesEntrySort.compareByName);
-      case EntrySortFactor.rating:
+      case .rating:
         _filteredSortedEntries.sort(AvesEntrySort.compareByRating);
-      case EntrySortFactor.size:
+      case .size:
         _filteredSortedEntries.sort(AvesEntrySort.compareBySize);
-      case EntrySortFactor.duration:
+      case .duration:
         _filteredSortedEntries.sort(AvesEntrySort.compareByDuration);
-      case EntrySortFactor.path:
+      case .path:
         _filteredSortedEntries.sort(AvesEntrySort.compareByPath);
     }
     if (sortReverse) {
@@ -282,31 +290,31 @@ class CollectionLens with ChangeNotifier {
       ]);
     } else {
       switch (sortFactor) {
-        case EntrySortFactor.date:
+        case .date:
           switch (sectionFactor) {
-            case EntrySectionFactor.album:
+            case .album:
               sections = groupBy<AvesEntry, EntryAlbumSectionKey>(_filteredSortedEntries, (entry) => EntryAlbumSectionKey(entry.directory));
-            case EntrySectionFactor.month:
+            case .month:
               sections = groupBy<AvesEntry, EntryDateSectionKey>(_filteredSortedEntries, (entry) => EntryDateSectionKey(entry.monthTaken));
-            case EntrySectionFactor.day:
+            case .day:
               sections = groupBy<AvesEntry, EntryDateSectionKey>(_filteredSortedEntries, (entry) => EntryDateSectionKey(entry.dayTaken));
-            case EntrySectionFactor.none:
+            case .none:
               sections = Map.fromEntries([
                 MapEntry(const SectionKey(), _filteredSortedEntries),
               ]);
           }
-        case EntrySortFactor.name:
+        case .name:
           final byAlbum = groupBy<AvesEntry, EntryAlbumSectionKey>(_filteredSortedEntries, (entry) => EntryAlbumSectionKey(entry.directory));
           final int Function(EntryAlbumSectionKey, EntryAlbumSectionKey) compare = sortReverse ? (a, b) => source.compareAlbumsByName(b.directory, a.directory) : (a, b) => source.compareAlbumsByName(a.directory, b.directory);
           sections = SplayTreeMap<EntryAlbumSectionKey, List<AvesEntry>>.of(byAlbum, compare);
-        case EntrySortFactor.rating:
+        case .rating:
           sections = groupBy<AvesEntry, EntryRatingSectionKey>(_filteredSortedEntries, (entry) => EntryRatingSectionKey(entry.rating));
-        case EntrySortFactor.size:
-        case EntrySortFactor.duration:
+        case .size:
+        case .duration:
           sections = Map.fromEntries([
             MapEntry(const SectionKey(), _filteredSortedEntries),
           ]);
-        case EntrySortFactor.path:
+        case .path:
           final byAlbum = groupBy<AvesEntry, EntryAlbumSectionKey>(_filteredSortedEntries, (entry) => EntryAlbumSectionKey(entry.directory));
           final int Function(EntryAlbumSectionKey, EntryAlbumSectionKey) compare = sortReverse ? (a, b) => source.compareAlbumsByPath(b.directory, a.directory) : (a, b) => source.compareAlbumsByPath(a.directory, b.directory);
           sections = SplayTreeMap<EntryAlbumSectionKey, List<AvesEntry>>.of(byAlbum, compare);

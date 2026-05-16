@@ -1,12 +1,13 @@
 import 'dart:ui';
 
+import 'package:aves/services/common/channel.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:flutter/services.dart';
 
 abstract class DeviceService {
   Future<bool> canManageMedia();
 
-  Future<Map<String, dynamic>> getCapabilities();
+  Future<Map<String, Object?>> getCapabilities();
 
   Future<List<Locale>> getLocales();
 
@@ -16,6 +17,8 @@ abstract class DeviceService {
   Future<int?> getFirstDayOfWeekIndex();
 
   Future<int> getPerformanceClass();
+
+  Future<double?> getWidgetCornerRadiusPx();
 
   Future<bool> isLocked();
 
@@ -29,7 +32,7 @@ abstract class DeviceService {
 }
 
 class PlatformDeviceService implements DeviceService {
-  static const _platform = MethodChannel('deckers.thibault/aves/device');
+  static const _platform = AvesMethodChannel('deckers.thibault/aves/device');
 
   @override
   Future<bool> canManageMedia() async {
@@ -43,10 +46,10 @@ class PlatformDeviceService implements DeviceService {
   }
 
   @override
-  Future<Map<String, dynamic>> getCapabilities() async {
+  Future<Map<String, Object?>> getCapabilities() async {
     try {
       final result = await _platform.invokeMethod('getCapabilities');
-      if (result != null) return (result as Map).cast<String, dynamic>();
+      if (result is Map) return result.cast<String, Object?>();
     } on PlatformException catch (e, stack) {
       await reportService.recordError(e, stack);
     }
@@ -76,7 +79,7 @@ class PlatformDeviceService implements DeviceService {
   @override
   Future<void> setLocaleConfig(List<Locale> locales) async {
     try {
-      await _platform.invokeMethod('setLocaleConfig', <String, dynamic>{
+      await _platform.invokeMethod('setLocaleConfig', <String, Object?>{
         'locales': locales.map((v) => v.toLanguageTag()).toList(),
       });
     } on PlatformException catch (e, stack) {
@@ -110,6 +113,17 @@ class PlatformDeviceService implements DeviceService {
       await reportService.recordError(e, stack);
     }
     return 0;
+  }
+
+  @override
+  Future<double?> getWidgetCornerRadiusPx() async {
+    try {
+      final result = await _platform.invokeMethod('getWidgetCornerRadiusPx');
+      if (result != null) return result as double;
+    } on PlatformException catch (e, stack) {
+      await reportService.recordError(e, stack);
+    }
+    return null;
   }
 
   @override

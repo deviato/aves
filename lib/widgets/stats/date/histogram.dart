@@ -11,7 +11,7 @@ import 'package:aves/widgets/common/extensions/build_context.dart';
 import 'package:aves/widgets/common/fx/transitions.dart';
 import 'package:aves/widgets/common/identity/aves_filter_chip.dart';
 import 'package:aves/widgets/stats/date/axis.dart';
-import 'package:charts_flutter/flutter.dart' as charts;
+import 'package:community_charts_flutter/community_charts_flutter.dart' as charts;
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
@@ -68,9 +68,9 @@ class _HistogramState extends State<Histogram> with AutomaticKeepAliveClientMixi
 
         late DateTime Function(DateTime) normalizeDate;
         switch (_level) {
-          case DateLevel.ymd:
+          case .ymd:
             normalizeDate = (v) => DateTime(v.year, v.month, v.day);
-          case DateLevel.ym:
+          case .ym:
             normalizeDate = (v) => DateTime(v.year, v.month);
           default:
             normalizeDate = (v) => DateTime(v.year);
@@ -88,17 +88,24 @@ class _HistogramState extends State<Histogram> with AutomaticKeepAliveClientMixi
 
           // smooth curve
           _interpolatedDataLoader = compute<_DataInterpolationArg, List<_EntryByDate>?>(
-              _computeInterpolatedData,
-              _DataInterpolationArg(
-                firstDate: _firstDate,
-                lastDate: _lastDate,
-                level: _level,
-                entryCountPerDate: _entryCountPerDate,
-              ));
+            _computeInterpolatedData,
+            _DataInterpolationArg(
+              firstDate: _firstDate,
+              lastDate: _lastDate,
+              level: _level,
+              entryCountPerDate: _entryCountPerDate,
+            ),
+          );
           _areaChartLoader = _interpolatedDataLoader.then((_) => Future.delayed(animationDuration * timeDilation));
         }
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _selection.dispose();
+    super.dispose();
   }
 
   static List<_EntryByDate>? _computeInterpolatedData(_DataInterpolationArg arg) {
@@ -114,10 +121,10 @@ class _HistogramState extends State<Histogram> with AutomaticKeepAliveClientMixi
     late int xCount;
     late DateTime Function(DateTime date) incrementDate;
     switch (level) {
-      case DateLevel.ymd:
+      case .ymd:
         xCount = xRange.inHumanDays;
         incrementDate = (date) => DateTime(date.year, date.month, date.day + 1);
-      case DateLevel.ym:
+      case .ym:
         xCount = (xRange.inHumanDays / 30.5).round();
         incrementDate = (date) => DateTime(date.year, date.month + 1);
       default:
@@ -283,7 +290,7 @@ class _HistogramState extends State<Histogram> with AutomaticKeepAliveClientMixi
       selectionModels: [
         charts.SelectionModelConfig(
           changedListener: (model) => _selection.value = model.selectedDatum.firstOrNull?.datum as _EntryByDate?,
-        )
+        ),
       ],
     );
     if (drawArea) {
@@ -292,7 +299,7 @@ class _HistogramState extends State<Histogram> with AutomaticKeepAliveClientMixi
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            accentColor,
+            accentColor.withAlpha(180),
             accentColor.withAlpha(0),
           ],
         ).createShader,

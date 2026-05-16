@@ -24,21 +24,21 @@ class CoordinateFilter extends CollectionFilter {
     _test = (entry) => GeoUtils.contains(sw, ne, entry.latLng);
   }
 
-  factory CoordinateFilter.fromMap(Map<String, dynamic> json) {
+  factory CoordinateFilter.fromMap(Map<String, Object?> json) {
     return CoordinateFilter(
-      LatLng.fromJson(json['sw']),
-      LatLng.fromJson(json['ne']),
-      reversed: json['reversed'] ?? false,
+      LatLng.fromJson(json['sw'] as Map<String, Object?>),
+      LatLng.fromJson(json['ne'] as Map<String, Object?>),
+      reversed: json['reversed'] as bool? ?? false,
     );
   }
 
   @override
-  Map<String, dynamic> toMap() => {
-        'type': type,
-        'sw': sw.toJson(),
-        'ne': ne.toJson(),
-        'reversed': reversed,
-      };
+  Map<String, Object?> toMap() => {
+    'type': type,
+    'sw': sw.toJson(),
+    'ne': ne.toJson(),
+    'reversed': reversed,
+  };
 
   @override
   EntryPredicate get positiveTest => _test;
@@ -50,12 +50,14 @@ class CoordinateFilter extends CollectionFilter {
 
   @override
   String get universalLabel {
-    return _formatBounds((latLng) => CoordinateFormat.decimal.formatWithoutDirectionality(
-          lookupAppLocalizations(AppLocalizations.supportedLocales.first),
-          latLng,
-          minuteSecondPadding: minuteSecondPadding,
-          dmsSecondDecimals: 0,
-        ));
+    return _formatBounds(
+      (latLng) => CoordinateFormat.decimal.formatWithoutDirectionality(
+        lookupAppLocalizations(AppLocalizations.supportedLocales.first),
+        latLng,
+        minuteSecondPadding: minuteSecondPadding,
+        dmsSecondDecimals: 0,
+      ),
+    );
   }
 
   @override

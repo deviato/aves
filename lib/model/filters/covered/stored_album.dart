@@ -28,21 +28,21 @@ class StoredAlbumFilter extends CollectionFilter with CoveredFilter, AlbumBaseFi
     _test = (entry) => entry.directory == album;
   }
 
-  factory StoredAlbumFilter.fromMap(Map<String, dynamic> json) {
+  factory StoredAlbumFilter.fromMap(Map<String, Object?> json) {
     return StoredAlbumFilter(
-      json['album'],
-      json['uniqueName'],
-      reversed: json['reversed'] ?? false,
+      json['album'] as String,
+      json['uniqueName'] as String?,
+      reversed: json['reversed'] as bool? ?? false,
     );
   }
 
   @override
-  Map<String, dynamic> toMap() => {
-        'type': type,
-        'album': album,
-        'uniqueName': displayName,
-        'reversed': reversed,
-      };
+  Map<String, Object?> toMap() => {
+    'type': type,
+    'album': album,
+    'uniqueName': displayName,
+    'reversed': reversed,
+  };
 
   @override
   EntryPredicate get positiveTest => _test;
@@ -69,7 +69,7 @@ class StoredAlbumFilter extends CollectionFilter with CoveredFilter, AlbumBaseFi
   @override
   Future<Color> color(BuildContext context) {
     // custom color has precedence over others, even custom app color
-    final customColor = covers.of(this)?.$3;
+    final customColor = covers.of(this)?.color;
     if (customColor != null) return SynchronousFuture(customColor);
 
     final colors = context.read<AvesColorsData>();
@@ -77,21 +77,21 @@ class StoredAlbumFilter extends CollectionFilter with CoveredFilter, AlbumBaseFi
     // to prevent rebuilding of the `FutureBuilder` listening on this future
     final albumType = covers.effectiveAlbumType(album);
     switch (albumType) {
-      case AlbumType.regular:
-      case AlbumType.vault:
+      case .regular:
+      case .vault:
         break;
-      case AlbumType.app:
+      case .app:
         final appColor = colors.appColor(album);
         if (appColor != null) return appColor;
-      case AlbumType.camera:
+      case .camera:
         return SynchronousFuture(colors.albumCamera);
-      case AlbumType.download:
+      case .download:
         return SynchronousFuture(colors.albumDownload);
-      case AlbumType.screenRecordings:
+      case .screenRecordings:
         return SynchronousFuture(colors.albumScreenRecordings);
-      case AlbumType.screenshots:
+      case .screenshots:
         return SynchronousFuture(colors.albumScreenshots);
-      case AlbumType.videoCaptures:
+      case .videoCaptures:
         return SynchronousFuture(colors.albumVideoCaptures);
     }
     return super.color(context);

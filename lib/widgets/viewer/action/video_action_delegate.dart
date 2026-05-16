@@ -9,7 +9,6 @@ import 'package:aves/model/filters/covered/stored_album.dart';
 import 'package:aves/model/source/collection_lens.dart';
 import 'package:aves/services/common/services.dart';
 import 'package:aves/services/media/enums.dart';
-import 'package:aves/theme/durations.dart';
 import 'package:aves/utils/android_file_utils.dart';
 import 'package:aves/widgets/collection/collection_page.dart';
 import 'package:aves/widgets/common/action_mixins/feedback.dart';
@@ -27,10 +26,8 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:leak_tracker/leak_tracker.dart';
-import 'package:provider/provider.dart';
 
 class VideoActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAwareMixin {
-  Timer? _overlayHidingTimer;
   final CollectionLens? collection;
 
   VideoActionDelegate({
@@ -49,38 +46,36 @@ class VideoActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAwareMix
     if (kFlutterMemoryAllocationsEnabled) {
       LeakTracking.dispatchObjectDisposed(object: this);
     }
-    stopOverlayHidingTimer();
   }
 
   Future<void> onActionSelected(BuildContext context, AvesEntry entry, AvesVideoController controller, EntryAction action) async {
     // make sure overlay is not disappearing when selecting an action
-    stopOverlayHidingTimer();
     const ToggleOverlayNotification(visible: true).dispatch(context);
 
     switch (action) {
-      case EntryAction.videoCaptureFrame:
+      case .videoCaptureFrame:
         await _captureFrame(context, entry, controller);
-      case EntryAction.videoToggleMute:
+      case .videoToggleMute:
         await controller.mute(!controller.isMuted);
-      case EntryAction.videoSelectStreams:
+      case .videoSelectStreams:
         await _showStreamSelectionDialog(context, controller);
-      case EntryAction.videoSetSpeed:
+      case .videoSetSpeed:
         await _showSpeedDialog(context, controller);
-      case EntryAction.videoABRepeat:
+      case .videoABRepeat:
         controller.toggleABRepeat();
-      case EntryAction.videoSettings:
+      case .videoSettings:
         await _showSettings(context, controller);
-      case EntryAction.videoTogglePlay:
+      case .videoTogglePlay:
         await _togglePlayPause(context, controller);
-      case EntryAction.videoReplay10:
+      case .videoReplay10:
         await controller.seekTo(max(controller.currentPosition - 10000, 0));
-      case EntryAction.videoSkip10:
+      case .videoSkip10:
         await controller.seekTo(controller.currentPosition + 10000);
-      case EntryAction.videoShowPreviousFrame:
+      case .videoShowPreviousFrame:
         await controller.skipFrames(-1);
-      case EntryAction.videoShowNextFrame:
+      case .videoShowNextFrame:
         await controller.skipFrames(1);
-      case EntryAction.openVideoPlayer:
+      case .openVideoPlayer:
         await appService.open(entry.uri, entry.mimeTypeAnySubtype, forceChooser: false).then((success) {
           if (!success) showNoMatchingAppDialog(context);
         });
@@ -103,23 +98,25 @@ class VideoActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAwareMix
       final rotationDegrees = entry.rotationDegrees;
       final dateTimeMillis = entry.catalogMetadata?.dateMillis;
       final latLng = entry.latLng;
-      final exif = {
+      final exif = <String, num>{
         if (rotationDegrees != 0) 'rotationDegrees': rotationDegrees,
         if (dateTimeMillis != null && dateTimeMillis != 0) 'dateTimeMillis': dateTimeMillis,
         if (latLng != null) ...{
           'latitude': latLng.latitude,
           'longitude': latLng.longitude,
-        }
+        },
       };
 
-      newFields.addAll(await mediaEditService.captureFrame(
-        entry,
-        desiredName: '${entry.bestTitle}_${'$positionMillis'.padLeft(8, '0')}',
-        exif: exif,
-        bytes: bytes,
-        destinationAlbum: destinationAlbum,
-        nameConflictStrategy: NameConflictStrategy.rename,
-      ));
+      newFields.addAll(
+        await mediaEditService.captureFrame(
+          entry,
+          desiredName: '${entry.bestTitle}_${'$positionMillis'.padLeft(8, '0')}',
+          exif: exif,
+          bytes: bytes,
+          destinationAlbum: destinationAlbum,
+          nameConflictStrategy: NameConflictStrategy.rename,
+        ),
+      );
     }
     final success = newFields.isNotEmpty;
 
@@ -164,11 +161,13 @@ class VideoActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAwareMix
     final userSelectedStreams = await showDialog<Map<MediaStreamType, MediaStreamSummary?>>(
       context: context,
       builder: (context) => VideoStreamSelectionDialog(
-        streams: Map.fromEntries(streams.map((stream) {
-          final selectedStream = currentSelectedStreams.nonNulls.firstWhereOrNull((v) => v.type == stream.type);
-          final selected = selectedStream != null && selectedStream.index == stream.index;
-          return MapEntry(stream, selected);
-        })),
+        streams: Map.fromEntries(
+          streams.map((stream) {
+            final selectedStream = currentSelectedStreams.nonNulls.firstWhereOrNull((v) => v.type == stream.type);
+            final selected = selectedStream != null && selectedStream.index == stream.index;
+            return MapEntry(stream, selected);
+          }),
+        ),
       ),
       routeSettings: const RouteSettings(name: VideoStreamSelectionDialog.routeName),
     );
@@ -227,12 +226,6 @@ class VideoActionDelegate with FeedbackMixin, PermissionAwareMixin, SizeAwareMix
       } else {
         await controller.play();
       }
-      // hide overlay
-      _overlayHidingTimer = Timer(context.read<DurationsData>().iconAnimation + ADurations.videoOverlayHideDelay, () {
-        const ToggleOverlayNotification(visible: false).dispatch(context);
-      });
     }
   }
-
-  void stopOverlayHidingTimer() => _overlayHidingTimer?.cancel();
 }

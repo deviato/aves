@@ -312,21 +312,24 @@ class _ContentState extends State<_Content> with SingleTickerProviderStateMixin 
           children: [
             Column(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                MapAction.selectStyle,
-                MapAction.zoomIn,
-                MapAction.zoomOut,
-              ]
-                  .mapIndexed((i, action) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: CaptionedButton(
-                          icon: action.getIcon(),
-                          caption: action.getText(context),
-                          autofocus: i == 0,
-                          onPressed: () => MapActionDelegate(_mapController).onActionSelected(context, action),
+              children:
+                  [
+                        MapAction.selectStyle,
+                        MapAction.zoomIn,
+                        MapAction.zoomOut,
+                      ]
+                      .mapIndexed(
+                        (i, action) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: CaptionedButton(
+                            icon: action.getIcon(),
+                            caption: action.getText(context),
+                            autofocus: i == 0,
+                            onPressed: () => MapActionDelegate(_mapController).onActionSelected(context, action),
+                          ),
                         ),
-                      ))
-                  .toList(),
+                      )
+                      .toList(),
             ),
             const SizedBox(width: 16),
             Expanded(child: child),
@@ -395,8 +398,8 @@ class _ContentState extends State<_Content> with SingleTickerProviderStateMixin 
     final selectedIndex = (selectedEntry != null && regionEntries.contains(selectedEntry))
         ? regionEntries.indexOf(selectedEntry)
         : regionEntries.isEmpty
-            ? null
-            : 0;
+        ? null
+        : 0;
     _selectedIndexNotifier.value = selectedIndex;
     // force update, as the region entries may change without a change of index
     _onThumbnailIndexChanged();
@@ -428,14 +431,14 @@ class _ContentState extends State<_Content> with SingleTickerProviderStateMixin 
   void _goToViewer(AvesEntry? initialEntry) {
     if (initialEntry == null) return;
 
+    final viewerCollection = regionCollection?.copyWith(
+      listenToSource: false,
+    );
     final appModeNotifier = context.read<ValueNotifier<AppMode>>();
     Navigator.maybeOf(context)?.push(
       TransparentMaterialPageRoute(
         settings: const RouteSettings(name: EntryViewerPage.routeName),
         pageBuilder: (context, a, sa) {
-          final viewerCollection = regionCollection?.copyWith(
-            listenToSource: false,
-          );
           // propagate app mode from the map page, as it could be locally overridden
           // and differ from the real app mode above the `Navigator`
           return ListenableProvider<ValueNotifier<AppMode>>.value(
@@ -540,7 +543,7 @@ class _ContentState extends State<_Content> with SingleTickerProviderStateMixin 
       await Future.delayed(animations.popUpAnimationDelay * timeDilation);
       final delegate = EntrySetActionDelegate();
       switch (selectedAction) {
-        case MapClusterAction.editLocation:
+        case .editLocation:
           final regionEntries = regionCollection?.sortedEntries ?? [];
           final markerIndex = regionEntries.indexOf(markerEntry);
           final location = await delegate.editLocationByMap(context, clusterEntries, markerLocation, openingCollection.copyWith());
@@ -550,7 +553,7 @@ class _ContentState extends State<_Content> with SingleTickerProviderStateMixin 
             }
             _mapController.moveTo(location);
           }
-        case MapClusterAction.removeLocation:
+        case .removeLocation:
           await delegate.removeLocation(context, clusterEntries);
       }
     }

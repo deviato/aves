@@ -8,18 +8,16 @@ import 'aves_dialog.dart';
 Future<bool> showConfirmationDialog({
   required BuildContext context,
   required String message,
-  required String confirmationButtonLabel,
+  String? ok,
+  String? cancel,
 }) async {
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => AvesDialog(
-      content: Text(message),
+    builder: (context) => AvesMessageDialog(
+      message: message,
       actions: [
-        const CancelButton(),
-        TextButton(
-          onPressed: () => Navigator.maybeOf(context)?.pop(true),
-          child: Text(confirmationButtonLabel),
-        ),
+        CancelButton<bool>(text: cancel, result: false),
+        OkButton<bool>(text: ok, result: true),
       ],
     ),
     routeSettings: const RouteSettings(name: AvesDialog.confirmationRouteName),
@@ -57,26 +55,26 @@ Future<bool> showSkippableConfirmationDialog({
 
 bool _shouldConfirm(ConfirmationDialog type) {
   switch (type) {
-    case ConfirmationDialog.createVault:
+    case .createVault:
       return settings.confirmCreateVault;
-    case ConfirmationDialog.deleteForever:
+    case .deleteForever:
       return settings.confirmDeleteForever;
-    case ConfirmationDialog.moveToBin:
+    case .moveToBin:
       return settings.confirmMoveToBin;
-    case ConfirmationDialog.moveUndatedItems:
+    case .moveUndatedItems:
       return settings.confirmMoveUndatedItems;
   }
 }
 
 void _skipConfirmation(ConfirmationDialog type) {
   switch (type) {
-    case ConfirmationDialog.createVault:
+    case .createVault:
       settings.confirmCreateVault = false;
-    case ConfirmationDialog.deleteForever:
+    case .deleteForever:
       settings.confirmDeleteForever = false;
-    case ConfirmationDialog.moveToBin:
+    case .moveToBin:
       settings.confirmMoveToBin = false;
-    case ConfirmationDialog.moveUndatedItems:
+    case .moveUndatedItems:
       settings.confirmMoveUndatedItems = false;
   }
 }
@@ -94,11 +92,11 @@ class MessageConfirmationDialogDelegate extends ConfirmationDialogDelegate {
 
   @override
   List<Widget> build(BuildContext context) => [
-        Padding(
-          padding: const EdgeInsets.all(16) + const EdgeInsets.only(top: 8),
-          child: Text(message),
-        ),
-      ];
+    Padding(
+      padding: const EdgeInsets.all(16) + const EdgeInsets.only(top: 8),
+      child: Text(message),
+    ),
+  ];
 }
 
 class _SkippableConfirmationDialog extends StatefulWidget {

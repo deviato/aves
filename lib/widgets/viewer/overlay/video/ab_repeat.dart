@@ -20,11 +20,19 @@ class VideoABRepeatOverlay extends StatefulWidget {
 }
 
 class _VideoABRepeatOverlayState extends State<VideoABRepeatOverlay> {
+  final ValueNotifier<ABRepeat?> _internalAbRepeatNotifier = ValueNotifier(null);
+
   Animation<double> get scale => widget.scale;
 
   AvesVideoController? get controller => widget.controller;
 
-  ValueNotifier<ABRepeat?> get abRepeatNotifier => controller?.abRepeatNotifier ?? ValueNotifier(null);
+  ValueNotifier<ABRepeat?> get abRepeatNotifier => controller?.abRepeatNotifier ?? _internalAbRepeatNotifier;
+
+  @override
+  void dispose() {
+    _internalAbRepeatNotifier.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,19 +46,19 @@ class _VideoABRepeatOverlayState extends State<VideoABRepeatOverlay> {
         Widget boundButton;
         if (abRepeat.start == null) {
           boundButton = IconButton(
-            icon: Icon(AIcons.setBoundStart),
+            icon: const Icon(AIcons.setBoundStart),
             onPressed: controller?.setABRepeatStart,
             tooltip: l10n.videoRepeatActionSetStart,
           );
         } else if (abRepeat.end == null) {
           boundButton = IconButton(
-            icon: Icon(AIcons.setBoundEnd),
+            icon: const Icon(AIcons.setBoundEnd),
             onPressed: controller?.setABRepeatEnd,
             tooltip: l10n.videoRepeatActionSetEnd,
           );
         } else {
           boundButton = IconButton(
-            icon: Icon(AIcons.resetBounds),
+            icon: const Icon(AIcons.resetBounds),
             onPressed: controller?.resetABRepeat,
             tooltip: l10n.resetTooltip,
           );
@@ -67,7 +75,7 @@ class _VideoABRepeatOverlayState extends State<VideoABRepeatOverlay> {
             OverlayButton(
               scale: scale,
               child: IconButton(
-                icon: Icon(AIcons.repeatOff),
+                icon: const Icon(AIcons.repeatOff),
                 onPressed: () => controller?.toggleABRepeat(),
                 tooltip: l10n.stopTooltip,
               ),

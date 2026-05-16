@@ -24,15 +24,15 @@ class OutlinedText extends StatelessWidget {
     this.softWrap,
     this.overflow,
     this.maxLines,
-  })  : outlineWidth = outlineWidth ?? 1,
-        outlineColor = outlineColor ?? Colors.black,
-        outlineBlurSigma = outlineBlurSigma ?? 0;
+  }) : outlineWidth = outlineWidth ?? 1,
+       outlineColor = outlineColor ?? Colors.black,
+       outlineBlurSigma = outlineBlurSigma ?? 0;
 
   @override
   Widget build(BuildContext context) {
     // TODO TLAD [subtitles] fix background area for mixed alphabetic-ideographic text
     // as of Flutter v3.10.0, the area computed for `backgroundColor` has inconsistent height
-    // in case of mixed alphabetic-ideographic text. The painted boxes depend on the script.
+    // in case .
     // Possible workarounds would be to use metrics from:
     // - `TextPainter.getBoxesForSelection`
     // - `Paragraph.getBoxesForRange`
@@ -74,29 +74,29 @@ class OutlinedText extends StatelessWidget {
 
     return Stack(
       children: [
-        if (outline != null) outline,
+        ?outline,
         fill,
       ],
     );
   }
 
   TextSpan _toStrokeSpan(TextSpan span) => TextSpan(
-        text: span.text,
-        children: span.children,
-        style: (span.style ?? const TextStyle()).copyWith(
-          foreground: Paint()
-            ..style = PaintingStyle.stroke
-            ..color = outlineColor
-            ..strokeWidth = outlineWidth,
-        ),
-      );
+    text: span.text,
+    children: span.children,
+    style: (span.style ?? const TextStyle()).copyWith(
+      foreground: Paint()
+        ..style = PaintingStyle.stroke
+        ..color = outlineColor
+        ..strokeWidth = outlineWidth,
+    ),
+  );
 
   TextSpan _toFillSpan(TextSpan span) => TextSpan(
-        text: span.text,
-        children: span.children,
-        style: (span.style ?? const TextStyle()).copyWith(
-          backgroundColor: Colors.transparent,
-          shadows: [],
-        ),
-      );
+    text: span.text,
+    children: span.children,
+    style: (span.style ?? const TextStyle()).copyWith(
+      backgroundColor: Colors.transparent,
+      shadows: [],
+    ),
+  );
 }

@@ -25,8 +25,7 @@ mixin LocationMixin on CountryMixin, StateMixin {
 
   Future<void> loadAddresses({Set<int>? ids}) async {
     final saved = await (ids != null ? localMediaDb.loadAddressesById(ids) : localMediaDb.loadAddresses());
-    final idMap = entryById;
-    saved.forEach((metadata) => idMap[metadata.id]?.addressDetails = metadata);
+    saved.forEach((metadata) => getEntryById(metadata.id)?.addressDetails = metadata);
     invalidateEntries();
     onAddressMetadataChanged();
   }
@@ -191,17 +190,18 @@ mixin LocationMixin on CountryMixin, StateMixin {
     required String? Function(AddressDetails address) getCode,
     required String? Function(AddressDetails address) getName,
   }) {
-    final namesByCode = Map.fromEntries(locations.map((address) {
-      final code = getCode(address);
-      if (code == null || code.isEmpty) return null;
-      return MapEntry(code, getName(address));
-    }).nonNulls);
+    final namesByCode = Map.fromEntries(
+      locations.map((address) {
+        final code = getCode(address);
+        if (code == null || code.isEmpty) return null;
+        return MapEntry(code, getName(address));
+      }).nonNulls,
+    );
     return namesByCode.entries.map((kv) {
       final code = kv.key;
       final name = kv.value;
       return '${name != null && name.isNotEmpty ? name : code}${LocationFilter.locationSeparator}$code';
-    }).toList()
-      ..sort(compareAsciiUpperCase);
+    }).toList()..sort(compareAsciiUpperCase);
   }
 }
 
